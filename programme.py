@@ -59,8 +59,31 @@ def generate_programme(show_id: str) -> tuple[Path, Path]:
             lines.append(f"- Warnings: {', '.join(sc.warnings)}")
         lines.append("")
 
-    # Urgent matters (populated by Session 3)
-    lines += ["## Urgent Matters", "", "_None — Urgent Contact not yet implemented (Session 3)._", ""]
+    # Urgent matters
+    matters = _state.get_urgent_matters(show_id)
+    lines += ["## Urgent Matters", ""]
+    if matters:
+        for m in matters:
+            res = f" → {m['resolution']}" if m.get("resolution") else ""
+            lines.append(f"- #{m['id']} [{m['severity']}] {m['status']}{res}  scene={m['scene_id']}")
+    else:
+        lines.append("_None._")
+    lines.append("")
+
+    # Monitor signals
+    monitor_events = _state.get_monitor_events(show_id)
+    lines += ["## Monitor Signals", ""]
+    if monitor_events:
+        from collections import Counter
+        by_type = Counter(ev["trigger_type"] for ev in monitor_events)
+        lines.append(f"- Total monitor events: {len(monitor_events)}")
+        for trigger_type, count in sorted(by_type.items()):
+            lines.append(f"  - {trigger_type}: {count}")
+        escalated = [ev for ev in monitor_events if ev["acknowledged"]]
+        lines.append(f"- Events acknowledged (processed by Stage Manager): {len(escalated)}")
+    else:
+        lines.append("_No monitor events._")
+    lines.append("")
 
     # Recent events
     lines += ["## Event Log (last 10)", ""]
@@ -90,6 +113,7 @@ def generate_programme(show_id: str) -> tuple[Path, Path]:
             for sid, ov in outputs.items()
         },
         "events": events,
+        "monitor_events": monitor_events,
     }
     json_path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
 

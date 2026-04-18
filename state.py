@@ -154,6 +154,21 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             ON scene_state(show_id);
         CREATE INDEX IF NOT EXISTS idx_urgent_matters_show
             ON urgent_matters(show_id);
+
+        CREATE TABLE IF NOT EXISTS monitor_events (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            show_id          TEXT NOT NULL,
+            trigger_type     TEXT NOT NULL,
+            severity         TEXT NOT NULL,
+            scene_id         TEXT,
+            details          TEXT,
+            threshold_config TEXT,
+            acknowledged     INTEGER DEFAULT 0,
+            created_at       TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_monitor_events_show
+            ON monitor_events(show_id, created_at);
     """)
 
 
@@ -594,3 +609,100 @@ def get_send_by_token(db_path: str, auth_token: str) -> Optional[Dict[str, Any]]
     ).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def add_monitor_event(
+    show_id: str,
+    trigger_type: str,
+    severity: str,
+    scene_id: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+    threshold_config: Optional[str] = None,
+) -> int:
+    """Write a monitor event row; ensures schema exists. Returns event id."""
+    now = _now()
+    details_json = json.dumps(details) if details is not None else None
+    conn = _connect(show_id)
+    _create_schema(conn)
+    cur = conn.execute(
+        """INSERT INTO monitor_events
+               (show_id, trigger_type, severity, scene_id, details, threshold_config, acknowledged, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?)""",
+        (show_id, trigger_type, severity, scene_id, details_json, threshold_config, now),
+    )
+    event_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return event_id
+
+
+def get_unacknowledged_monitor_events(show_id: str) -> List[Dict[str, Any]]:
+    """Return unacknowledged monitor events for a show."""
+    if not get_db_path(show_id).exists():
+        return []
+    conn = _connect(show_id)
+    _create_schema(conn)
+    rows = conn.execute(
+        """SELECT * FROM monitor_events
+           WHERE show_id=? AND acknowledged=0
+           ORDER BY created_at""",
+        (show_id,),
+    ).fetchall()
+    conn.close()
+    return [
+        {
+            "id": r["id"],
+            "show_id": r["show_id"],
+            "trigger_type": r["trigger_type"],
+            "severity": r["severity"],
+            "scene_id": r["scene_id"],
+            "details": json.loads(r["details"]) if r["details"] else None,
+            "threshold_config": r["threshold_config"],
+            "acknowledged": bool(r["acknowledged"]),
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+
+
+def acknowledge_monitor_events(show_id: str, event_ids: List[int]) -> None:
+    """Mark monitor events as processed."""
+    if not event_ids:
+        return
+    conn = _connect(show_id)
+    placeholders = ",".join("?" for _ in event_ids)
+    conn.execute(
+        f"UPDATE monitor_events SET acknowledged=1 WHERE id IN ({placeholders})",
+        event_ids,
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_monitor_events(
+    show_id: str,
+    limit: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Return monitor events for a show (for CLI display)."""
+    if not get_db_path(show_id).exists():
+        return []
+    conn = _connect(show_id)
+    _create_schema(conn)
+    q = "SELECT * FROM monitor_events WHERE show_id=? ORDER BY created_at DESC"
+    if limit:
+        q += f" LIMIT {int(limit)}"
+    rows = conn.execute(q, (show_id,)).fetchall()
+    conn.close()
+    return [
+        {
+            "id": r["id"],
+            "trigger_type": r["trigger_type"],
+            "severity": r["severity"],
+            "scene_id": r["scene_id"],
+            "details": json.loads(r["details"]) if r["details"] else None,
+            "threshold_config": r["threshold_config"],
+            "acknowledged": bool(r["acknowledged"]),
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]

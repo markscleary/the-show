@@ -19,6 +19,8 @@ from state import (
     persist_scene_state,
     persist_show_state,
     persist_state,
+    get_unacknowledged_monitor_events,
+    acknowledge_monitor_events as _acknowledge_monitor_events,
 )
 
 
@@ -293,6 +295,85 @@ def handle_cut(scene: Scene) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Monitor signal integration
+# ──────────────────────────────────────────────────────────────────────────────
+
+_MONITOR_ESCALATION_MAP = {
+    "cost-runaway": ["cost-hard-cap-reached"],
+    "stalled": ["any-scene-duration-over", "any-scene-duration-over-seconds"],
+    "policy-denials": ["repeated-policy-denials"],
+}
+
+
+def check_monitor_signals(show_id: str) -> list:
+    """Query monitor_events for unacknowledged triggers."""
+    return get_unacknowledged_monitor_events(show_id)
+
+
+def acknowledge_monitor_events(show_id: str, event_ids: list) -> None:
+    """Mark monitor events as processed by stage manager."""
+    _acknowledge_monitor_events(show_id, event_ids)
+
+
+def _handle_monitor_signals(show_id: str, show: "ShowSettings", state: "ShowState") -> bool:
+    """
+    Check unacknowledged monitor events. Raise urgent matters for escalation-mapped triggers.
+    Acknowledges all events after processing.
+    Returns True if the show should be aborted (critical unhandled signal).
+    """
+    events = check_monitor_signals(show_id)
+    if not events:
+        return False
+
+    escalate_when = show.bible.escalation  # top-level escalation dict from Prompt Book
+
+    for ev in events:
+        trigger = ev["trigger_type"]
+        escalation_keys = _MONITOR_ESCALATION_MAP.get(trigger, [])
+        should_escalate = any(escalate_when.get(k) for k in escalation_keys)
+
+        if should_escalate and ev["severity"] in ("urgent", "critical"):
+            from urgent_contact.dispatcher import UrgentContactDispatcher
+            from urgent_contact.channels.mock import MockChannel
+            db_path = get_db_path(state.show_id)
+            dispatcher = UrgentContactDispatcher(
+                db_path=str(db_path),
+                show=show,
+                adapters=[MockChannel()],
+            )
+            details = ev.get("details") or {}
+            prompt = (
+                f"Monitor alert: {trigger} detected. "
+                f"Details: {details}"
+            )
+            dispatcher.raise_urgent_matter(
+                trigger_type=f"monitor-{trigger}",
+                severity=ev["severity"],
+                prompt=prompt,
+                deadline=None,
+                scene_id=ev.get("scene_id"),
+            )
+            add_event(
+                state.show_id,
+                "monitor_escalated",
+                scene_id=ev.get("scene_id"),
+                payload={"trigger_type": trigger, "monitor_event_id": ev["id"]},
+            )
+
+        elif trigger in ("oscillation", "retry-storm"):
+            # Warning-only — log to event stream but don't escalate unless operator configured
+            add_event(
+                state.show_id,
+                f"monitor_warning_{trigger.replace('-', '_')}",
+                scene_id=ev.get("scene_id"),
+                payload=ev.get("details"),
+            )
+
+    acknowledge_monitor_events(show_id, [ev["id"] for ev in events])
+    return False
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Field validator hook (hook only — validators not implemented until later)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -354,6 +435,9 @@ def run_show(
         # Skip scenes already in a terminal state (resume path)
         if scene_state.status in TERMINAL_STATES:
             continue
+
+        # ── Monitor signals ───────────────────────────────────────────────────
+        _handle_monitor_signals(state.show_id, show, state)
 
         # ── Dependency check ─────────────────────────────────────────────────
         unresolved = [

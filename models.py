@@ -110,3 +110,16 @@ class ShowState:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class MonitorEvent:
+    id: int
+    show_id: str
+    trigger_type: str   # oscillation | stalled | retry-storm | cost-runaway | policy-denials
+    severity: str       # info | warning | urgent | critical
+    scene_id: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+    threshold_config: Optional[str] = None
+    acknowledged: bool = False
+    created_at: Optional[str] = None

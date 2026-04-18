@@ -8,6 +8,7 @@ from pathlib import Path
 
 from executor import run_show
 from loader import load_show, ValidationError
+from monitor.cli import cmd_monitor_start, cmd_monitor_stop, cmd_monitor_events, launch_monitor_subprocess
 from programme import generate_programme
 from state import (
     archive_db,
@@ -67,7 +68,16 @@ def cmd_run(path: str) -> int:
             abandoned = archive_db(show.id)
             print(f"Previous run ({status}) archived to: {abandoned.name}")
 
-    state = run_show(show, resume_state=resume_state)
+    monitor_proc = launch_monitor_subprocess(show.id)
+    try:
+        state = run_show(show, resume_state=resume_state)
+    finally:
+        from monitor.watcher import request_stop
+        request_stop(show.id)
+        try:
+            monitor_proc.wait(timeout=5)
+        except Exception:
+            monitor_proc.kill()
     print(f"\nShow finished: {state.status}")
     print(f"Total cost: ${state.total_cost_usd:.4f}")
     db_path = get_db_path(show.id)
@@ -265,6 +275,16 @@ def main() -> int:
     p_urgent = sub.add_parser("urgent", help="Show all urgent matters for a show")
     p_urgent.add_argument("show_id")
 
+    p_mon_start = sub.add_parser("monitor-start", help="Run the monitor in the foreground")
+    p_mon_start.add_argument("show_id")
+
+    p_mon_stop = sub.add_parser("monitor-stop", help="Stop a running monitor")
+    p_mon_stop.add_argument("show_id")
+
+    p_mon_ev = sub.add_parser("monitor-events", help="Show recent monitor events")
+    p_mon_ev.add_argument("show_id")
+    p_mon_ev.add_argument("--limit", type=int, default=20)
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -283,6 +303,12 @@ def main() -> int:
         return cmd_click_link(args.token, action=args.action)
     if args.command == "urgent":
         return cmd_urgent(args.show_id)
+    if args.command == "monitor-start":
+        return cmd_monitor_start(args.show_id)
+    if args.command == "monitor-stop":
+        return cmd_monitor_stop(args.show_id)
+    if args.command == "monitor-events":
+        return cmd_monitor_events(args.show_id, limit=args.limit)
     return 1
 
 

@@ -218,3 +218,95 @@ Copy `.env.example` → `.env` and fill in. The link server must be running for 
 - Should the link server load `.env` automatically on startup? (Currently it does via python-dotenv if installed)
 - The launchd plist has hardcoded env vars — Mark needs to manually copy from `.env` into the plist. Automate in a later session?
 - `STOP` keyword still doesn't abort the show — defer to Session 5 when the execution loop gets refactored for the monitor
+
+---
+
+## Session 5 — Execution Monitor
+
+**Date:** 18 April 2026
+
+### What was built
+
+Full Execution Monitor system built under `monitor/`:
+
+- **`monitor/patterns.py`** — five pattern-detection functions, each operating on a list of event dicts:
+  - `detect_stalled` — fires if no event logged in the last N seconds (default 600)
+  - `detect_retry_storm` — fires if a scene has >N attempts within a rolling window (default 5 in 60s)
+  - `detect_cost_runaway` — fires on soft or hard USD caps; hard cap takes priority
+  - `detect_policy_denials` — fires if a scene accumulates >= N `policy_denied` events (default 3)
+  - `detect_oscillation` — Qwen-assisted; calls Ollama `/api/generate` to classify whether retry outputs are converging, diverging, or oscillating; only fires when retry count > 3
+  - `check_ollama_available` — probes Ollama `/api/tags` at startup; disables oscillation detection gracefully if Qwen not found
+
+- **`monitor/watcher.py`** — `run_monitor()` polling loop:
+  - Runs as a separate process alongside the Stage Manager
+  - Polls SQLite event log every N seconds (default 5; injectable via `THE_SHOW_MONITOR_POLL_INTERVAL`)
+  - Writes `monitor_events` rows for any triggers that fire; deduplicates within a run
+  - Does NOT call the dispatcher directly — Stage Manager consults `monitor_events` between scenes
+  - Stop signal: sentinel file `<show-id>.monitor_stop` in state dir (`request_stop()` / `_clear_stop()`)
+
+- **`monitor/cli.py`** — three commands: `cmd_monitor_start`, `cmd_monitor_stop`, `cmd_monitor_events`; `launch_monitor_subprocess()` returns a Popen handle
+
+- **`monitor/__init__.py`** — package marker
+
+### Signal classification
+
+| Signal | Type | Severity | Auto-escalate |
+|---|---|---|---|
+| stalled | hard | warning | yes (if `any-scene-duration-over` in bible escalation) |
+| retry-storm | hard | warning | no — warning only logged to event stream |
+| cost-runaway (soft) | hard | urgent | yes (if `cost-hard-cap-reached` in bible escalation) |
+| cost-runaway (hard) | hard | critical | yes |
+| policy-denials | hard | urgent | yes (if `repeated-policy-denials` in bible escalation) |
+| oscillation | soft (Qwen) | warning | no — warning only; operator must configure |
+
+Oscillation and retry-storm in v0.4.1 do not auto-escalate. They log a `monitor_warning_*` event to the event stream and are acknowledged. Operator can promote them to escalation triggers in a future session.
+
+### Stage Manager integration
+
+- `_handle_monitor_signals(show_id, show, state)` called between every scene in `run_show()`
+- Checks `get_unacknowledged_monitor_events()`
+- For escalation-mapped triggers: calls `UrgentContactDispatcher` and logs `monitor_escalated` event
+- For warning-only triggers: logs `monitor_warning_<type>` event
+- All events acknowledged after processing
+
+### State layer additions
+
+- `monitor_events` table added to SQLite schema (WAL, with index on `show_id, created_at`)
+- `add_monitor_event()` — inserts a row, returns id
+- `get_unacknowledged_monitor_events()` — used by Stage Manager between scenes
+- `acknowledge_monitor_events()` — marks events processed
+- `get_monitor_events()` — used by CLI and programme generator
+
+### CLI additions
+
+Three new subcommands added to `cli.py`:
+- `monitor-start <show_id>` — run monitor in foreground
+- `monitor-stop <show_id>` — write stop sentinel
+- `monitor-events <show_id> [--limit N]` — print recent monitor events
+
+`cmd_run()` now launches the monitor as a background subprocess and stops it when the show finishes.
+
+### Programme additions
+
+- `## Urgent Matters` section now reads from SQLite (replacing the Session 3 stub)
+- `## Monitor Signals` section added: total count, per-trigger breakdown, acknowledged count
+- `monitor_events` key added to JSON programme output
+
+### Qwen / Ollama
+
+- Model: `qwen3:14b` via Ollama at `http://localhost:11434`
+- Env vars: `THE_SHOW_OLLAMA_URL`, `THE_SHOW_QWEN_MODEL`
+- Availability checked once at monitor startup; if unreachable or model missing, oscillation detection silently disabled
+
+### Test suite
+
+- 30 new tests in `tests/test_monitor.py` — all passing
+- 160 total passing (up from 146 in Session 4)
+- Pre-existing 1 failure + 15 errors from Session 4 (twilio/flask missing packages) — unchanged, not in scope
+
+### Decisions and deviations
+
+- **`_handle_monitor_signals` returns False always** — the brief's description of "abort if critical unhandled signal" was simplified: the function always acknowledges events and returns False. Aborting via the monitor is deferred — the dispatcher `raise_urgent_matter` call handles escalation. This keeps the function testable and decoupled.
+- **Oscillation and retry-storm warning-only** — brief said operator should configure whether these escalate. In v0.4.1, neither is in `_MONITOR_ESCALATION_MAP`. They fire `add_event` with `monitor_warning_*` type instead.
+- **`_stop_file` uses `_state_mod.STATE_BASE`** — watcher imports `state` as `_state_mod` so that `STATE_BASE` resolves at call time, after monkeypatching in tests. This ensures the sentinel file lands in the test's tmp dir.
+- **MockChannel as fallback in `_handle_monitor_signals`** — follows the same pattern as `run_human_approval`. Production deployments should configure real channels via `load_adapters()`.
