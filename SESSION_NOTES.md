@@ -368,3 +368,36 @@ python3 cli.py run shows/curiosity-cat-launch-brief.yaml
 ```
 
 Do not set `THE_SHOW_URGENT_TIMEOUT` — use the 300-second default so Mark has time to respond.
+
+---
+
+## Session 7 — Wire real adapters + real LLM calls
+
+**Date:** 19 April 2026
+
+### What was done
+
+Closed the two wiring gaps identified in Session 6:
+
+1. **Real channel adapters in executor.py** — `run_human_approval()` and `_handle_monitor_signals()` now call `load_adapters(show)` instead of hardcoding `[MockChannel()]`. Live Telegram/email/SMS channels fire when their env vars are set.
+
+2. **Real LLM calls for sub-agent scenes** — `adapters.py` sub-agent handler now makes real httpx POST calls to the LiteLLM proxy at `http://localhost:4000/chat/completions`. Model and parameters are drawn from the scene strategy config. The proxy's `usage` field is parsed and appended to the event log for cost tracking.
+
+3. **Markdown-fence sanitisation fallback** — sub-agent responses are passed through `strip_markdown_fences()` before success evaluation, matching the existing sanitisation applied elsewhere.
+
+4. **Test isolation** — `tests/conftest.py` gains an autouse fixture that monkeypatches `call_sub_agent` to return a deterministic stub, so no real LLM calls are made during the test suite.
+
+### Test suite
+
+- **160 passed** — no regressions from Session 6
+- 1 pre-existing failure (twilio not installed), 15 pre-existing errors (flask not installed) — unchanged, not in scope
+
+### Env vars needed before live run
+
+- `LITELLM_MASTER_KEY` — master key for the LiteLLM proxy at localhost:4000
+- `URGENT_TELEGRAM_BOT_TOKEN` — Telegram bot created via BotFather
+- `URGENT_CONTACT_PRIMARY_TELEGRAM_USER_ID` — numeric Telegram user ID (message @userinfobot)
+- `URGENT_CONTACT_ALTERNATE_TELEGRAM_USER_ID` — alternate contact's numeric user ID
+- See Session 4 notes for the full SMTP / Twilio list
+
+**Important:** launchd-spawned processes do not inherit shell env vars. Any env var set in `~/.zshrc` must also be registered with `launchctl setenv <KEY> <VALUE>` for processes launched via launchd (including the OpenClaw gateway) to see them.
