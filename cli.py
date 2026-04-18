@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from executor import run_show
@@ -12,7 +14,9 @@ from state import (
     count_completed_scenes,
     get_db_path,
     get_events,
+    get_send_by_token,
     get_show_status,
+    get_urgent_matters,
     load_show_state,
     show_exists,
 )
@@ -96,7 +100,14 @@ def cmd_peek(show_id: str) -> int:
             scene_tag = f" [{ev['scene_id']}]" if ev["scene_id"] else ""
             print(f"  {ev['created_at']}  {ev['event_type']}{scene_tag}")
 
-    print("\nUrgent matters: none (Session 3)")
+    matters = get_urgent_matters(show_id)
+    if matters:
+        print(f"\nUrgent matters ({len(matters)}):")
+        for m in matters:
+            res = f" → {m['resolution']}" if m.get("resolution") else ""
+            print(f"  #{m['id']} [{m['severity']}] {m['status']}{res}  scene={m['scene_id']}")
+    else:
+        print("\nUrgent matters: none")
     return 0
 
 
@@ -131,6 +142,91 @@ def cmd_events(show_id: str, since: str | None = None, limit: int | None = None)
     return 0
 
 
+def cmd_respond(handle: str, text: str) -> int:
+    """Write a response to the mock urgent channel responses file."""
+    from urgent_contact.channels.mock import MOCK_DIR, RESPONSES_FILE
+    MOCK_DIR.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "handle": handle,
+        "text": text,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    with RESPONSES_FILE.open("a") as f:
+        f.write(json.dumps(entry) + "\n")
+    print(f"Response written for handle '{handle}': {text!r}")
+    return 0
+
+
+def cmd_click_link(token: str, action: str = "APPROVE") -> int:
+    """Simulate a signed-link click by looking up the send and writing a response."""
+    from urgent_contact.channels.mock import MOCK_DIR, RESPONSES_FILE
+    from urgent_contact.auth import verify_signed_token
+
+    # Find the send record by token to get the handle and show_id
+    # We need to search all show DBs — look through state files
+    state_dir = Path.home() / ".the-show" / "state"
+    if not state_dir.exists():
+        print("No state directory found.")
+        return 1
+
+    send = None
+    show_id = None
+    db_path = None
+    for db_file in state_dir.glob("*.db"):
+        candidate_show_id = db_file.stem
+        s = get_send_by_token(str(db_file), token)
+        if s is not None:
+            send = s
+            show_id = candidate_show_id
+            db_path = str(db_file)
+            break
+
+    if send is None:
+        print(f"No pending send found with token '{token}'.")
+        return 1
+
+    # Verify the token is valid HMAC
+    if not verify_signed_token(token, show_id):
+        print(f"Token '{token}' failed HMAC verification.")
+        return 1
+
+    handle = send["channel_handle"]
+    MOCK_DIR.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "handle": handle,
+        "text": f"{action} {token}",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "signed_link_token": token,
+    }
+    with RESPONSES_FILE.open("a") as f:
+        f.write(json.dumps(entry) + "\n")
+    print(f"Signed-link click recorded: {action} for '{handle}' (token: {token[:12]}...)")
+    return 0
+
+
+def cmd_urgent(show_id: str) -> int:
+    """Show all urgent matters for a show."""
+    if not show_exists(show_id):
+        print(f"No state found for show '{show_id}'")
+        return 1
+    matters = get_urgent_matters(show_id)
+    if not matters:
+        print(f"No urgent matters for show '{show_id}'.")
+        return 0
+    print(f"Urgent matters for show '{show_id}' ({len(matters)} total):\n")
+    for m in matters:
+        print(f"  Matter #{m['id']} — {m['severity'].upper()} [{m['status']}]")
+        print(f"    Scene:      {m['scene_id']}")
+        print(f"    Trigger:    {m['trigger_type']}")
+        print(f"    Prompt:     {m['prompt'][:80]}")
+        print(f"    Created:    {m['created_at']}")
+        if m.get("resolution"):
+            print(f"    Resolution: {m['resolution']} (by {m.get('resolved_by_contact','?')} via {m.get('resolved_by_channel','?')})")
+            print(f"    Resolved:   {m['resolved_at']}")
+        print()
+    return 0
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ──────────────────────────────────────────────────────────────────────────────
@@ -156,6 +252,19 @@ def main() -> int:
     p_ev.add_argument("--since", default=None, help="ISO timestamp — show events after this time")
     p_ev.add_argument("--limit", type=int, default=None, help="Maximum events to show")
 
+    p_respond = sub.add_parser("respond", help="Write a response to the mock urgent channel")
+    p_respond.add_argument("handle", help="Contact handle (e.g. @producer)")
+    p_respond.add_argument("text", help="Response text (e.g. 'APPROVE 123456')")
+
+    p_click = sub.add_parser("click-link", help="Simulate clicking a signed approval link")
+    p_click.add_argument("token", help="The signed link token from the approval message")
+    p_click.add_argument("--action", default="APPROVE",
+                         choices=["APPROVE", "REJECT", "CONTINUE", "STOP"],
+                         help="Action to submit (default: APPROVE)")
+
+    p_urgent = sub.add_parser("urgent", help="Show all urgent matters for a show")
+    p_urgent.add_argument("show_id")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -168,6 +277,12 @@ def main() -> int:
         return cmd_programme(args.show_id)
     if args.command == "events":
         return cmd_events(args.show_id, since=args.since, limit=args.limit)
+    if args.command == "respond":
+        return cmd_respond(args.handle, args.text)
+    if args.command == "click-link":
+        return cmd_click_link(args.token, action=args.action)
+    if args.command == "urgent":
+        return cmd_urgent(args.show_id)
     return 1
 
 

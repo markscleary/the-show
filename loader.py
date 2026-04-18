@@ -29,6 +29,7 @@ def _strategy_from_dict(data: Dict[str, Any]) -> Strategy:
         params=data.get("params", {}),
         label=data.get("label"),
         success_when=data.get("success-when", {}),  # per-strategy override
+        severity=data.get("severity", "urgent"),
     )
 
 
@@ -113,6 +114,7 @@ def load_show(path: str | Path) -> ShowSettings:
         stage_manager=show.get("stage-manager", {}),
         bible=Bible(**_kebab_to_snake_dict(show.get("bible", {}))),
         running_order=scenes,
+        urgent_contact=show.get("urgent-contact", {}),
     )
     validate_show(settings)
     return settings

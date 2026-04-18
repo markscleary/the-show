@@ -13,7 +13,7 @@ from loader import load_show
 YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
 
 
-def test_resume_skips_completed_scenes(tmp_state_dirs):
+def test_resume_skips_completed_scenes(tmp_state_dirs, fast_approval):
     """If a scene is already in a terminal state, the executor must not re-run it."""
     show = load_show(YAML_PATH)
     # Manually set up "interrupted" state: load_targets played, rest queued
@@ -39,7 +39,7 @@ def test_resume_skips_completed_scenes(tmp_state_dirs):
         )
 
 
-def test_resume_preserves_cost(tmp_state_dirs):
+def test_resume_preserves_cost(tmp_state_dirs, fast_approval):
     """Costs accumulated before a crash should survive the resume."""
     show = load_show(YAML_PATH)
     s = state.initialize_state(show)
@@ -58,7 +58,7 @@ def test_resume_preserves_cost(tmp_state_dirs):
     assert result.total_cost_usd >= 0.50
 
 
-def test_fresh_start_after_completed(tmp_state_dirs):
+def test_fresh_start_after_completed(tmp_state_dirs, fast_approval):
     """Running a completed show with archive_db + re-initialize should start clean."""
     show = load_show(YAML_PATH)
     run_show(show)
@@ -78,7 +78,7 @@ def test_load_show_state_raises_on_missing(tmp_state_dirs):
         state.load_show_state("nonexistent-show")
 
 
-def test_terminal_states_are_skipped(tmp_state_dirs):
+def test_terminal_states_are_skipped(tmp_state_dirs, mock_dirs):
     """Scenes already in TERMINAL_STATES must not be re-executed on resume."""
     show = load_show(YAML_PATH)
     s = state.initialize_state(show)

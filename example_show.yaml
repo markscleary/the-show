@@ -27,6 +27,17 @@ show:
         min: 2
         max: 20
 
+  # ── Urgent Contact configuration (Session 3: mock channel) ────────────────
+  urgent-contact:
+    mode: sequential            # sequential | parallel
+    max-per-show: 3             # throttle for unplanned urgent matters
+    send-interval-seconds: 15   # seconds between sequential contact attempts
+    contacts:
+      - role: producer
+        channel: mock
+        handle: "@producer"
+        auth: reply-token       # send 6-digit token; must appear in reply
+
   running-order:
 
     # Scene 1 — load the target list from disk (trusted input)
@@ -64,7 +75,7 @@ show:
         condition: escalate
         reason: "Cannot proceed without contacts"
 
-    # Scene 2 — human-approval gate (Session 2 stub: auto-APPROVEs)
+    # Scene 2 — human-approval gate (Session 3: real Urgent Contact with mock channel)
     - scene: approve_run
       title: "Operator approval check"
       depends-on: [load_targets]
@@ -75,8 +86,9 @@ show:
           schema: string
       principal:
         method: human-approval
+        severity: urgent          # urgent (default) | critical
         agent: stage-manager
-        brief: "Do you approve this enrichment run?"
+        brief: "Do you approve this enrichment run? Reply APPROVE <token> to confirm."
       success-when:
         schema: string
       cut:

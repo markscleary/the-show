@@ -22,6 +22,7 @@ class Strategy:
     params: Dict[str, Any] = field(default_factory=dict)
     label: Optional[str] = None
     success_when: Dict[str, Any] = field(default_factory=dict)  # per-strategy override; falls back to scene-level
+    severity: str = "urgent"  # for human-approval: urgent | critical
 
 
 @dataclass
@@ -73,6 +74,7 @@ class ShowSettings:
     stage_manager: Dict[str, str] = field(default_factory=dict)
     bible: Bible = field(default_factory=Bible)
     running_order: List[Scene] = field(default_factory=list)
+    urgent_contact: Dict[str, Any] = field(default_factory=dict)  # contacts, mode, throttle config
 
 
 @dataclass

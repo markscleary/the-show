@@ -13,6 +13,7 @@ from state import (
     SUCCESS_STATES,
     TERMINAL_STATES,
     add_event,
+    get_db_path,
     initialize_state,
     persist_scene_output,
     persist_scene_state,
@@ -108,27 +109,73 @@ def sleep_with_backoff(attempt: int, base_delay: float, jitter: bool) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Human-approval stub
+# Human-approval — calls the real Urgent Contact dispatcher
 # ──────────────────────────────────────────────────────────────────────────────
 
-def stub_urgent_contact_approval(scene: Scene, show_id: str) -> str:
-    """Session 2 stub — returns APPROVE immediately.
+def run_human_approval(
+    scene: Scene,
+    strategy: Strategy,
+    show: ShowSettings,
+    state: ShowState,
+    label: str,
+) -> Tuple[bool, AdapterResult]:
+    """Invoke the Urgent Contact dispatcher for a human-approval strategy."""
+    from urgent_contact.dispatcher import UrgentContactDispatcher
+    from urgent_contact.channels.mock import MockChannel
 
-    TODO Session 3: replace this with the real Urgent Contact machinery.
-    The Urgent Contact will send the approval request via the configured
-    channel adapter and wait for a human response before continuing.
-    """
-    print(
-        f"[STUB] human-approval for scene '{scene.scene}' "
-        f"— auto-APPROVE (Session 3 will implement real approval)"
+    db_path = get_db_path(state.show_id)
+    dispatcher = UrgentContactDispatcher(
+        db_path=str(db_path),
+        show=show,
+        adapters=[MockChannel()],
     )
-    add_event(
-        show_id,
-        "urgent_contact_stubbed",
+
+    resolution = dispatcher.raise_urgent_matter(
+        trigger_type="human-approval",
+        severity=strategy.severity or "urgent",
+        prompt=strategy.brief or scene.title,
+        deadline=None,
         scene_id=scene.scene,
-        payload={"note": "Session 2 stub — auto-APPROVED. Real implementation in Session 3."},
     )
-    return "APPROVE"
+
+    # Map resolution to (success, AdapterResult) for the outer strategy loop
+    if resolution in ("APPROVE", "CONTINUE"):
+        result = AdapterResult(success=True, output=resolution, duration_ms=0, cost_usd=0.0)
+        success = True
+    elif resolution == "STOP":
+        result = AdapterResult(
+            success=False, output=None, error_type="show-stop", duration_ms=0, cost_usd=0.0
+        )
+        success = False
+    elif resolution == "exhausted":
+        result = AdapterResult(
+            success=False, output=None, error_type="blocked-no-response", duration_ms=0, cost_usd=0.0
+        )
+        success = False
+    else:
+        # REJECT or throttled
+        result = AdapterResult(
+            success=False, output=None, error_type=resolution, duration_ms=0, cost_usd=0.0
+        )
+        success = False
+
+    record = AttemptRecord(
+        scene=scene.scene,
+        strategy_label=label,
+        status="success" if success else "failed",
+        error_type=result.error_type,
+        duration_ms=0,
+        cost_usd=0.0,
+    )
+    state.scenes[scene.scene].attempts.append(record)
+    add_event(
+        state.show_id,
+        "urgent_contact_resolved",
+        scene_id=scene.scene,
+        strategy_label=label,
+        payload={"resolution": resolution},
+    )
+    return success, result
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -146,33 +193,9 @@ def run_strategy(
 ) -> Tuple[bool, AdapterResult]:
     """Run one strategy (with retries). Returns (success, last_result)."""
 
-    # Human-approval: handled by stub, never reaches the adapter
+    # Human-approval: handled by Urgent Contact dispatcher, not by the adapter
     if strategy.method == "human-approval":
-        decision = stub_urgent_contact_approval(scene, state.show_id)
-        result = AdapterResult(
-            success=True,
-            output=decision,  # "APPROVE" string
-            duration_ms=0,
-            cost_usd=0.0,
-        )
-        record = AttemptRecord(
-            scene=scene.scene,
-            strategy_label=label,
-            status="success",
-            duration_ms=0,
-            cost_usd=0.0,
-        )
-        state.scenes[scene.scene].attempts.append(record)
-        add_event(
-            state.show_id,
-            "attempt",
-            scene_id=scene.scene,
-            strategy_label=label,
-            payload={"status": "success", "decision": decision},
-            cost=0.0,
-            duration_ms=0,
-        )
-        return True, result
+        return run_human_approval(scene, strategy, show, state, label)
 
     # Attach idempotency key once for all retries of this strategy invocation
     if is_side_effectful(strategy):
@@ -403,6 +426,10 @@ def run_show(
                 scene_success = True
                 break
 
+            # Special error types from human-approval — break immediately
+            if result.error_type in ("blocked-no-response", "show-stop"):
+                break
+
             # Try adaptive variation of this strategy before moving to next
             if adaptive_enabled:
                 adapted = apply_adaptation(scene, strategy)
@@ -433,7 +460,34 @@ def run_show(
         if scene_success:
             continue
 
-        # ── All strategies failed ─────────────────────────────────────────────
+        # ── All strategies failed — check for special error types ─────────────
+
+        if last_result and last_result.error_type == "show-stop":
+            scene_state.status = "blocked"
+            persist_scene_state(state.show_id, scene_state)
+            state.status = "aborted"
+            persist_show_state(state)
+            add_event(state.show_id, "show_stopped", scene_id=scene.scene,
+                      payload={"reason": "STOP received from human"})
+            break
+
+        if last_result and last_result.error_type == "blocked-no-response":
+            scene_state.status = "blocked-no-response"
+            persist_scene_state(state.show_id, scene_state)
+            add_event(state.show_id, "scene_blocked_no_response", scene_id=scene.scene)
+            # DAG pruning: mark all dependent scenes as cascading-dependency-failure
+            from urgent_contact.degradation import prune_dag_on_blocked
+            pruned = prune_dag_on_blocked(state, show, scene.scene)
+            for pruned_id in pruned:
+                add_event(
+                    state.show_id,
+                    "scene_cascading_failure",
+                    scene_id=pruned_id,
+                    payload={"blocked_by": scene.scene},
+                )
+            continue  # keep running non-dependent scenes
+
+        # Normal cut handling
         scene_state.status = handle_cut(scene)
 
         # continue-with-partial: propagate last output so downstream can bind to it

@@ -39,6 +39,17 @@ def _connect(show_id: str) -> sqlite3.Connection:
     conn = sqlite3.connect(str(get_db_path(show_id)))
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA foreign_keys=ON;")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _connect_path(db_path: str) -> sqlite3.Connection:
+    """Connect by explicit path (used by urgent_contact which passes its own db_path)."""
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA foreign_keys=ON;")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -95,10 +106,54 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             created_at     TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS urgent_matters (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            show_id             TEXT NOT NULL,
+            scene_id            TEXT,
+            trigger_type        TEXT NOT NULL,
+            severity            TEXT NOT NULL,
+            prompt              TEXT NOT NULL,
+            deadline            TEXT,
+            status              TEXT NOT NULL,
+            resolution          TEXT,
+            resolved_by_channel TEXT,
+            resolved_by_contact TEXT,
+            created_at          TEXT,
+            resolved_at         TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS urgent_sends (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            urgent_matter_id    INTEGER NOT NULL,
+            channel_type        TEXT NOT NULL,
+            channel_handle      TEXT NOT NULL,
+            contact_role        TEXT NOT NULL,
+            scheduled_at        TEXT,
+            sent_at             TEXT,
+            auth_method         TEXT NOT NULL,
+            auth_token          TEXT,
+            status              TEXT NOT NULL,
+            FOREIGN KEY (urgent_matter_id) REFERENCES urgent_matters(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS urgent_responses (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            urgent_matter_id    INTEGER NOT NULL,
+            send_id             INTEGER,
+            raw_response        TEXT NOT NULL,
+            authenticated       INTEGER NOT NULL,
+            valid_format        INTEGER NOT NULL,
+            parsed_action       TEXT,
+            received_at         TEXT,
+            FOREIGN KEY (urgent_matter_id) REFERENCES urgent_matters(id)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_events_show
             ON events(show_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_scene_state_show
             ON scene_state(show_id);
+        CREATE INDEX IF NOT EXISTS idx_urgent_matters_show
+            ON urgent_matters(show_id);
     """)
 
 
@@ -373,3 +428,169 @@ def archive_db(show_id: str) -> Path:
     abandoned = db_path.parent / f"{show_id}_{ts}.db.abandoned"
     db_path.rename(abandoned)
     return abandoned
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Urgent Contact CRUD (called by urgent_contact/dispatcher.py)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def create_urgent_matter(
+    db_path: str,
+    show_id: str,
+    scene_id: Optional[str],
+    trigger_type: str,
+    severity: str,
+    prompt: str,
+    deadline: Optional[str],
+) -> int:
+    """Insert a new urgent_matter row; ensure schema exists. Returns matter id."""
+    conn = _connect_path(db_path)
+    _create_schema(conn)
+    now = _now()
+    cur = conn.execute(
+        """INSERT INTO urgent_matters
+               (show_id, scene_id, trigger_type, severity, prompt, deadline, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'open', ?)""",
+        (show_id, scene_id, trigger_type, severity, prompt, deadline, now),
+    )
+    matter_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return matter_id
+
+
+def update_urgent_matter(
+    db_path: str,
+    matter_id: int,
+    status: str,
+    resolution: Optional[str] = None,
+    resolved_by_channel: Optional[str] = None,
+    resolved_by_contact: Optional[str] = None,
+) -> None:
+    now = _now()
+    resolved_at = now if status in ("resolved", "exhausted") else None
+    conn = _connect_path(db_path)
+    conn.execute(
+        """UPDATE urgent_matters
+           SET status=?, resolution=?, resolved_by_channel=?, resolved_by_contact=?,
+               resolved_at=COALESCE(?, resolved_at)
+           WHERE id=?""",
+        (status, resolution, resolved_by_channel, resolved_by_contact, resolved_at, matter_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def create_urgent_send(
+    db_path: str,
+    matter_id: int,
+    channel_type: str,
+    channel_handle: str,
+    contact_role: str,
+    auth_method: str,
+    auth_token: Optional[str],
+) -> int:
+    """Insert a queued send record; returns send id."""
+    now = _now()
+    conn = _connect_path(db_path)
+    cur = conn.execute(
+        """INSERT INTO urgent_sends
+               (urgent_matter_id, channel_type, channel_handle, contact_role,
+                scheduled_at, auth_method, auth_token, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'queued')""",
+        (matter_id, channel_type, channel_handle, contact_role, now, auth_method, auth_token),
+    )
+    send_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return send_id
+
+
+def mark_send_sent(db_path: str, send_id: int) -> None:
+    now = _now()
+    conn = _connect_path(db_path)
+    conn.execute(
+        "UPDATE urgent_sends SET status='sent', sent_at=? WHERE id=?",
+        (now, send_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def cancel_pending_sends(db_path: str, matter_id: int, include_sent: bool = True) -> None:
+    """Mark queued (and optionally sent) sends for a matter as cancelled."""
+    conn = _connect_path(db_path)
+    statuses = "('queued','sent')" if include_sent else "('queued')"
+    conn.execute(
+        f"UPDATE urgent_sends SET status='cancelled' WHERE urgent_matter_id=? AND status IN {statuses}",
+        (matter_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_sends_for_matter(db_path: str, matter_id: int) -> List[Dict[str, Any]]:
+    conn = _connect_path(db_path)
+    rows = conn.execute(
+        "SELECT * FROM urgent_sends WHERE urgent_matter_id=? ORDER BY id",
+        (matter_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def log_urgent_response(
+    db_path: str,
+    matter_id: int,
+    send_id: Optional[int],
+    raw_response: str,
+    authenticated: bool,
+    valid_format: bool,
+    parsed_action: Optional[str],
+) -> None:
+    now = _now()
+    conn = _connect_path(db_path)
+    conn.execute(
+        """INSERT INTO urgent_responses
+               (urgent_matter_id, send_id, raw_response, authenticated, valid_format,
+                parsed_action, received_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (matter_id, send_id, raw_response, 1 if authenticated else 0,
+         1 if valid_format else 0, parsed_action, now),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_urgent_matters(show_id: str) -> List[Dict[str, Any]]:
+    """Return all urgent matters for a show (for CLI display)."""
+    conn = _connect(show_id)
+    rows = conn.execute(
+        "SELECT * FROM urgent_matters WHERE show_id=? ORDER BY created_at",
+        (show_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def count_unplanned_urgent_matters(db_path: str, show_id: str) -> int:
+    """Count open/resolved urgent matters excluding planned human-approval triggers."""
+    conn = _connect_path(db_path)
+    row = conn.execute(
+        """SELECT COUNT(*) as n FROM urgent_matters
+           WHERE show_id=? AND trigger_type != 'human-approval'""",
+        (show_id,),
+    ).fetchone()
+    conn.close()
+    return row["n"] if row else 0
+
+
+def get_send_by_token(db_path: str, auth_token: str) -> Optional[Dict[str, Any]]:
+    """Look up a send record by its auth_token (for signed-link click)."""
+    conn = _connect_path(db_path)
+    row = conn.execute(
+        "SELECT * FROM urgent_sends WHERE auth_token=? LIMIT 1",
+        (auth_token,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None

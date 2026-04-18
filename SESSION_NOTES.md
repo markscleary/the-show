@@ -93,3 +93,56 @@ The brief was detailed enough to work without the spec file. Session 3 should pl
 - Session 2 was executed without the v0.4.1 locked spec in docs/ — work proceeded from v0.2 spec plus Session 1 brief guidance
 - All scope decisions aligned with v0.4.1 section 19 Core v1 minus deferred items
 - Tests and end-to-end verification pass
+
+---
+
+## Session 3 — The Urgent Contact
+
+**Date:** 18 April 2026
+
+### What was done
+
+Full Urgent Contact system built under `urgent_contact/`:
+
+- **Dispatcher** (`dispatcher.py`) — raises matters, fires sends sequentially or in parallel, polls for responses, cancels pending sends on first valid reply, returns resolution string (APPROVE / REJECT / STOP / CONTINUE / exhausted / throttled)
+- **Auth** (`auth.py`) — three methods: channel-native (trusted channel identity), reply-token (6-digit numeric code embedded in outbound message), signed-link (HMAC-SHA256 token tied to show-id + matter-id + secret; wrong show or tampered token rejected)
+- **Parser** (`parser.py`) — strict keyword matching: APPROVE / REJECT / STOP / CONTINUE; anything else returns INVALID_FORMAT_REPLY sentinel and does not resolve the matter
+- **Throttle** (`throttle.py`) — counts unplanned urgent matters per show; default limit 3; `human-approval` trigger type always exempt; `critical` severity always bypasses
+- **Degradation** (`degradation.py`) — DAG pruning: marks direct and transitive dependents of a failed/exhausted scene as `cascading-dependency-failure`; skips scenes already in a terminal state
+- **Channels** — `base.py` defines `ChannelAdapter` ABC and `InboundResponse` datatype; `mock.py` implements a file-drop mock channel for test determinism (reads responses from `~/.the-show/mock_responses/<matter-id>.json`)
+
+### Executor integration
+
+- `human-approval` stub replaced with real dispatcher call
+- `exhausted` result → scene state becomes `blocked-no-response`; DAG pruning fires for all dependents
+- `throttled` result → scene is skipped (not retried); logged as a throttle event
+- Urgent contact resolved event logged to SQLite event log
+
+### Test suite
+
+- 84 tests passing (18.9 s) — 37 new tests for urgent_contact, 47 carried from Session 2; 1 additional test in `test_executor.py`
+- `test_urgent_contact.py`: parser, auth (all three methods), dispatcher (sequential, parallel, cancellation, exhaustion), throttle (limit, exemptions, critical bypass), DAG pruning (direct, transitive, already-terminal, leaf), executor integration
+- Polling interval injectable via constructor kwarg or `THE_SHOW_POLL_INTERVAL` env var (default 5 s); tests pass `poll_interval_seconds=0` for determinism
+
+### Deviations from brief
+
+- **`planned_human_approval` exemption** — brief said "planned human-approval exempt from throttle". Implemented via `trigger_type == "human-approval"` parameter passed by the executor. The `is_allowed()` method checks this before counting. Straightforward interpretation.
+- **`STOP` keyword** — spec listed APPROVE / REJECT / CONTINUE; STOP was added as a natural fourth keyword (halt the entire show, not just this scene). Treated equivalently to REJECT at the executor level for now; a STOP→show-abort path is flagged for Session 4 or 5.
+- **Mock channel response format** — not specified in brief; implemented as a JSON file dropped at a known path. Real channel polling replaces this entirely in Session 4.
+- **Parallel mode triggered by config OR critical severity** — brief said critical bypasses throttle; also made critical force parallel dispatch regardless of mode config. Belt-and-suspenders for time-sensitive alerts.
+
+### Spec ambiguities resolved by interpretation
+
+- **Auth method selection**: brief described three methods without specifying how one is chosen per contact. Implemented as per-contact config (`auth_method` field in show YAML contact spec). Mock channel defaults to `channel-native`.
+- **Cancellation timing**: "cancels pending sends on first valid response" — implemented as setting `status='cancelled'` in `urgent_sends` DB rows before returning resolution; the poll loop checks status before firing the next scheduled send.
+- **DAG pruning scope**: brief said "cascading-dependency-failure"; implemented to traverse the full dependency graph transitively, not just direct children. Scenes already in any terminal state are skipped (not double-marked).
+- **`INVALID_FORMAT_REPLY` vs silence**: a malformed response (not matching any keyword) sends the `INVALID_FORMAT_REPLY` message back to the responder and does NOT resolve the matter — polling continues. This preserves the matter's open state and prompts the contact to try again.
+
+### Open questions for Session 4 (Real Channels)
+
+- Telegram adapter: bot token config, webhook vs polling, group vs DM
+- WhatsApp adapter: requires Business API or third-party gateway — which?
+- Email adapter: SMTP send + IMAP poll, or a webhook-based provider (Postmark, SendGrid)?
+- SMS adapter: Twilio? config for account SID / auth token
+- `STOP` keyword: should it abort the entire show immediately, or just block the current scene and let the programme note the early stop?
+- Signed-link base URL: needs a real endpoint for Session 4 (currently just a placeholder string in dispatcher)
