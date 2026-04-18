@@ -1,0 +1,415 @@
+show:
+  id: curiosity-cat-launch-brief
+  title: "Curiosity Cat r/ClaudeCode launch response briefing"
+  rehearsal: true
+  max-duration-seconds: 7200
+  max-scenes: 10
+
+  sliders:
+    risk: streetcat
+    improvisation: standard   # enables adaptive variations for scene 002
+
+  stage-manager:
+    mode: deterministic
+
+  bible:
+    objective: "Produce the Front Page briefing document for Curiosity Cat's r/ClaudeCode launch"
+    escalation:
+      blocked-scenes-consecutive: 2
+      budget-consumed-percentage: 75
+      unexpected-credential-request: true
+      any-scene-duration-over-seconds: 900
+    reporting:
+      programme-format: [markdown, json]
+      deliver-to: [disk, email]
+    adaptation-bounds:
+      batch-size:
+        min: 6
+        max: 10
+
+  # Urgent Contact — mock channel fires in rehearsal; live run uses telegram → email → sms
+  urgent-contact:
+    mode: sequential
+    max-per-show: 3
+    send-interval-seconds: 600   # 10min between escalations in live run
+    contacts:
+      - role: operator
+        channel: mock           # used in rehearsal (executor injects MockChannel)
+        handle: "@markinsydney"
+        auth: reply-token
+      # Live channels — uncomment and configure env vars for production run:
+      # - role: operator
+      #   channel: telegram
+      #   handle: "@markinsydney"
+      #   auth: channel-native
+      # - role: operator
+      #   channel: email
+      #   handle: "markscleary@gmail.com"
+      #   auth: signed-link
+      # - role: operator
+      #   channel: sms
+      #   handle: "+61468857482"
+      #   auth: reply-token
+
+  running-order:
+
+    # ── Scene 001: Gather Curiosity Cat context ───────────────────────────────
+    # Reads product files and produces a concentrated product_summary for
+    # downstream scenes to reference.
+    - scene: gather_context
+      title: "Gather Curiosity Cat context"
+      input-trust: trusted
+      outputs:
+        product_summary:
+          type: list
+          schema: object[]
+      principal:
+        method: sub-agent
+        agent: gemini-2.5-flash
+        brief: |
+          Read the Curiosity Cat product files and produce a product_summary covering:
+          - Product positioning ("practical middle ground between locking down and roaming free")
+          - Install paths: Path 0 (system prompt paste), npm install, pip install
+          - Key differentiators: the adventure slider (Housecat → Alleycat → Tiger),
+            "the only security tool that lets you choose to be braver"
+          - Target user profile: developers running AI agents that browse the web
+          - What makes it unique vs. competing approaches (sandboxes, firewalls)
+          - Technical facts: no install for Path 0, Node ≥16 / Python ≥3.8 for other paths
+          Reference files:
+            /Users/markshortandsweet.org/Curiosity-Cat/README.md
+            /Users/markshortandsweet.org/Curiosity-Cat/standing-orders/general-safety.md
+            /Users/markshortandsweet.org/Curiosity-Cat/index.html
+        params:
+          model: gemini-2.5-flash
+          files:
+            - /Users/markshortandsweet.org/Curiosity-Cat/README.md
+            - /Users/markshortandsweet.org/Curiosity-Cat/standing-orders/general-safety.md
+            - /Users/markshortandsweet.org/Curiosity-Cat/index.html
+      fallbacks:
+        - label: qwen-fallback
+          method: sub-agent
+          agent: qwen3-14b
+          brief: |
+            Read Curiosity Cat README and produce a product_summary list covering
+            positioning, install paths, the adventure slider, and key differentiators.
+          params:
+            model: qwen3:14b
+            files:
+              - /Users/markshortandsweet.org/Curiosity-Cat/README.md
+      success-when:
+        schema: object[]
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 300
+      cut:
+        condition: escalate
+        reason: "Cannot produce briefing without product context"
+      adaptive:
+        allowed: false
+
+    # ── Scene 002: Research likely comment categories ─────────────────────────
+    # Generates the taxonomy of comments the launch post will attract, with
+    # sample comments per category for reference in downstream response drafting.
+    - scene: research_categories
+      title: "Research likely comment categories"
+      depends-on: [gather_context]
+      inputs:
+        product_summary: from(gather_context.product_summary)
+      input-trust: untrusted
+      outputs:
+        comment_categories:
+          type: list
+          schema: object[]
+      principal:
+        method: sub-agent
+        agent: gemini-2.5-flash
+        brief: |
+          You have Curiosity Cat's product summary. Generate the categories of comments
+          a Curiosity Cat launch post on r/ClaudeCode would attract. For each category,
+          produce 3–5 example comments that feel authentically Reddit.
+
+          Required categories (expand as needed, target 7–9 total):
+          - install-problems: npm/pip install failures, PATH issues, "it doesn't work"
+          - differentiation: "how is this different from X?" (X = Docker, DevSkim,
+            GitHub Advanced Security, just using a VM, etc.)
+          - hostile-skeptical: "why would I trust an AI safety tool?", "security theatre"
+          - enthusiastic-first-timer: excited, wants to know more, shares use cases
+          - security-researcher: probes threat model, asks about bypass vectors,
+            wants to audit the standing orders file
+          - unrelated-jokes: puns on "curiosity killed the cat", meme responses
+          - theatre-angle: questions about Housecat/Alleycat/Tiger branding,
+            "what exactly does Tiger mode let through?"
+          - compensation-or-blame: if an agent does damage while running Curiosity Cat,
+            who is responsible? (potential red-line territory)
+
+          Output a list of objects:
+          {category_name: string, description: string, sample_comments: [string]}
+        params:
+          model: gemini-2.5-flash
+      fallbacks:
+        - label: qwen-fallback
+          method: sub-agent
+          agent: qwen3-14b
+          brief: |
+            Generate comment categories for a Curiosity Cat Reddit launch post.
+            Output a list with category_name, description, sample_comments per category.
+            Minimum 6 categories with 3 sample comments each.
+          params:
+            model: qwen3:14b
+      success-when:
+        schema: object[]
+        min-length: 6
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 300
+      cut:
+        condition: escalate
+        reason: "Cannot produce briefing without comment category taxonomy"
+      adaptive:
+        allowed: true
+        bounds:
+          batch-size:
+            min: 6
+            max: 10
+
+    # ── Scene 003: Draft Mark-voice responses per category ────────────────────
+    # The meat of the deliverable. Produces ready-to-use response templates
+    # in Mark's voice, plus red-line flags for categories he handles personally.
+    - scene: draft_responses
+      title: "Draft Mark-voice responses per category"
+      depends-on: [gather_context, research_categories]
+      inputs:
+        product_summary: from(gather_context.product_summary)
+        comment_categories: from(research_categories.comment_categories)
+      input-trust: untrusted
+      outputs:
+        response_templates:
+          type: list
+          schema: object[]
+      principal:
+        method: sub-agent
+        agent: claude-opus-4-7
+        brief: |
+          You have Curiosity Cat's product summary and the taxonomy of comments the
+          launch post will attract. For each category, write 2–3 example responses
+          in Mark's voice. Mark's voice:
+          - Direct, plain English, Australian register
+          - No corporate speak, no defensive posture
+          - Comfortable saying "I don't know yet" or "good catch"
+          - Warm but not gushing; interested in the person's actual question
+          - Short responses preferred (3–5 sentences unless the question demands more)
+          - Never passive-aggressive, never dismissive of security concerns
+
+          For each category, also decide: is this a red-line?
+          Red-line = Front Page does NOT respond. Mark handles personally.
+          Flag as red_line: true for categories involving:
+          - Compensation claims, damage liability, "who pays if your tool fails me?"
+          - Plagiarism or theft accusations
+          - Lawsuit or legal threat language
+          - Statements that tag another person or company negatively
+          - Scam or fraud accusations
+          - Anything Mark would regret delegating
+
+          Output a list — one object per category:
+          {
+            category_name: string,
+            responses: [string],
+            red_line: bool,
+            red_line_reason: string (empty string if not a red-line)
+          }
+        params:
+          model: claude-opus-4-7
+          skill: mark-voice
+      fallbacks:
+        - label: sonnet-fallback
+          method: sub-agent
+          agent: claude-sonnet-4-6
+          brief: |
+            Write Mark-voice response templates (2–3 per category) for each comment category.
+            Flag red-line categories (red_line: true) that Mark must handle personally.
+            Mark's voice: direct, plain, Australian register, not defensive.
+          params:
+            model: claude-sonnet-4-6
+            skill: mark-voice
+      success-when:
+        schema: object[]
+        min-length: 5
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 3
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 600
+      cut:
+        condition: escalate
+        reason: "Response templates are the core deliverable — cannot produce briefing without them"
+      adaptive:
+        allowed: false
+
+    # ── Scene 004: Human approval of red-lines ────────────────────────────────
+    # Mark reviews the red-line category list and APPROVE/REJECT/STOPs.
+    # NOTE: This scene uses cut: continue. If Mark does not respond within the
+    # deadline, the briefing proceeds using the conservative default red-line list
+    # (anything with lawsuit / theft / plagiarism / scam / compensation / negative
+    # personal tagging). Compile_briefing does NOT depend on this scene so it
+    # continues regardless of approval outcome.
+    - scene: approve_redlines
+      title: "Human approval of red-line categories"
+      depends-on: [draft_responses]
+      inputs:
+        response_templates: from(draft_responses.response_templates)
+      input-trust: trusted
+      outputs:
+        decision:
+          type: string
+          schema: string
+      principal:
+        method: human-approval
+        severity: urgent
+        agent: stage-manager
+        brief: |
+          Red-line categories have been identified for your personal handling on launch day.
+          Front Page will NOT respond to these — it will ping you immediately instead.
+
+          Review the response_templates output from scene draft_responses and confirm
+          the red-line list is correct.
+
+          Reply APPROVE to accept the list, REJECT to revise, STOP to halt the show.
+
+          If you do not respond, the show proceeds with conservative defaults:
+          any comment involving lawsuit, theft, plagiarism, scam, compensation claims,
+          or negative statements about specific people or companies.
+      success-when:
+        schema: string
+      cut:
+        condition: continue
+        reason: |
+          No response within deadline. Briefing will proceed with conservative default
+          red-lines: lawsuit, theft, plagiarism, scam, compensation claims,
+          negative personal/company tagging.
+
+    # ── Scene 005: Compile the briefing document ──────────────────────────────
+    # Assembles all prior outputs into the Front Page briefing document.
+    # Intentionally does NOT depend on approve_redlines: if that scene is
+    # blocked-no-response, the DAG pruner would cascade here. The briefing
+    # uses scene 003's red_line flags directly (conservative defaults apply
+    # if Mark's approval wasn't received).
+    - scene: compile_briefing
+      title: "Compile the complete briefing document"
+      depends-on: [gather_context, research_categories, draft_responses]
+      inputs:
+        product_summary: from(gather_context.product_summary)
+        comment_categories: from(research_categories.comment_categories)
+        response_templates: from(draft_responses.response_templates)
+      input-trust: trusted
+      outputs:
+        briefing_document:
+          type: list
+          schema: object[]
+      principal:
+        method: sub-agent
+        agent: claude-opus-4-7
+        brief: |
+          Compile the complete Front Page briefing document for Curiosity Cat's
+          r/ClaudeCode launch. Front Page will open this document on launch day and
+          act from it immediately — it must be complete and ready to use.
+
+          Required structure:
+
+          ## 1. Product Summary
+          What Curiosity Cat is, who it's for, the three install paths,
+          the adventure slider (Housecat/Alleycat/Tiger), key differentiators.
+
+          ## 2. Mark's Voice Reference
+          Tone, register, style. Concrete examples of what to say and what not to say.
+          Australian English. Direct. Not defensive. Short preferred.
+
+          ## 3. Comment Category Handling Guide
+          One section per category. For each:
+          - Category name and brief description
+          - 2–3 ready-to-use response examples in Mark's voice
+          - Any nuance or judgment calls Front Page should apply
+
+          ## 4. Red-Line List
+          Categories Front Page does NOT respond to. For each red-line category:
+          - Name and why it's a red-line
+          - What Front Page does instead: ping Mark with the comment text immediately
+          - Default conservative red-lines apply if Mark's approval was not received
+
+          ## 5. Escalation Rules
+          - When to ping Mark (red-lines + anything genuinely ambiguous)
+          - How to ping (Telegram @markinsydney with comment text + category guess)
+          - What context to include in the ping
+          - Response time expectation (Mark aims to respond within 2h on launch day)
+
+          Target: 1500+ words. Complete sections. No placeholders.
+        params:
+          model: claude-opus-4-7
+          skill: mark-voice
+      fallbacks:
+        - label: sonnet-fallback
+          method: sub-agent
+          agent: claude-sonnet-4-6
+          brief: |
+            Compile the Curiosity Cat launch briefing document for Front Page.
+            Required sections: product summary, Mark's voice reference,
+            category handling guide, red-line list, escalation rules.
+            1500+ words. Complete. No placeholders.
+          params:
+            model: claude-sonnet-4-6
+            skill: mark-voice
+      success-when:
+        schema: object[]
+        min-length: 10
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 3
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 600
+      cut:
+        condition: escalate
+        reason: "Briefing document is the final deliverable — cannot complete show without it"
+      adaptive:
+        allowed: false
+
+    # ── Scene 006: Save and notify ────────────────────────────────────────────
+    # Writes the briefing to disk and emails it to Mark.
+    # In rehearsal: write-json is a no-op stub (returns path, does not write).
+    # Email is not sent in rehearsal.
+    - scene: save_and_notify
+      title: "Save briefing and notify Mark"
+      depends-on: [compile_briefing]
+      inputs:
+        briefing_document: from(compile_briefing.briefing_document)
+      input-trust: trusted
+      outputs:
+        output_path:
+          type: string
+          schema: string
+      principal:
+        method: tool-call
+        agent: stage-manager
+        action: write-json
+        params:
+          path: /Users/markshortandsweet.org/Curiosity-Cat/docs/LAUNCH_RESPONSE_BRIEFING.md
+          format: markdown
+          email_to: markscleary@gmail.com
+          email_subject: "Curiosity Cat — Launch Response Briefing"
+      success-when:
+        schema: string
+      cut:
+        condition: continue
+        reason: "Save failed — briefing data is in show state and can be recovered"
+      adaptive:
+        allowed: false

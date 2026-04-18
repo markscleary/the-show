@@ -310,3 +310,61 @@ Three new subcommands added to `cli.py`:
 - **Oscillation and retry-storm warning-only** — brief said operator should configure whether these escalate. In v0.4.1, neither is in `_MONITOR_ESCALATION_MAP`. They fire `add_event` with `monitor_warning_*` type instead.
 - **`_stop_file` uses `_state_mod.STATE_BASE`** — watcher imports `state` as `_state_mod` so that `STATE_BASE` resolves at call time, after monkeypatching in tests. This ensures the sentinel file lands in the test's tmp dir.
 - **MockChannel as fallback in `_handle_monitor_signals`** — follows the same pattern as `run_human_approval`. Production deployments should configure real channels via `load_adapters()`.
+
+---
+
+## Session 6 — First real show (rehearsed)
+
+**Date:** 18 April 2026
+
+### What was done
+
+- Created `shows/` directory at project root
+- Wrote `shows/curiosity-cat-launch-brief.yaml` — a 6-scene show producing the Front Page briefing document for the Curiosity Cat r/ClaudeCode launch
+- Validated and rehearsed the show end-to-end: `python3 cli.py run shows/curiosity-cat-launch-brief.yaml`
+- Show status: **completed** — 5 of 6 scenes played-principal, 1 blocked-no-response (approve_redlines, as expected)
+- Programme generated at `~/.the-show/state/curiosity-cat-launch-brief/programme.md`
+
+### Scene outcomes (rehearsal)
+
+| Scene | Status | Notes |
+|-------|--------|-------|
+| gather_context | played-principal | Sub-agent stub returned synthetic list |
+| research_categories | played-principal | min-length: 6 passed (50 stub items) |
+| draft_responses | played-principal | min-length: 5 passed |
+| approve_redlines | blocked-no-response | Timed out at 30s (THE_SHOW_URGENT_TIMEOUT=30). Expected. |
+| compile_briefing | played-principal | Critical design: NOT in approve_redlines.depends-on |
+| save_and_notify | played-principal | write-json stub returned path; no actual file written |
+
+### Simulated cost: $1.00 (4 × $0.25 sub-agent stubs)
+
+### Bugs found and fixed
+
+**`schema: list` is silently parsed as a dict schema.** `meets_success()` checks for `[]` in the schema string, or `list[` / `list ` prefix — the bare word `list` falls through to the else branch and expects a dict. Fix: use `schema: object[]` for list outputs in success-when and output declarations. Updated all 4 sub-agent output schemas in the YAML.
+
+### Key design decisions in the show
+
+**`compile_briefing` does NOT depend on `approve_redlines`.**
+Why: if scene 004 exhausts (no human response), it gets `blocked-no-response` status. The DAG pruner cascades `cascading-dependency-failure` to all direct dependents. If scene 005 had `approve_redlines` in its `depends-on`, it would be pruned and the briefing would never compile. The framework has no optional-dependency concept. Decision: 005 depends only on 001–003; it uses scene 003's `red_line` flags directly (set by the sub-agent). Mark's explicit approval is the happy path — conservative defaults are the fallback.
+
+**Mock channel fires in rehearsal; executor hardcodes MockChannel.**
+`run_human_approval` in executor.py always passes `adapters=[MockChannel()]` to the dispatcher. The live channels in the YAML urgent-contact config (telegram, email, sms) are commented out — they cannot fire until the executor is updated to call `load_adapters()` based on the show config. This is the next gap to close before the live run.
+
+**Sub-agent stub returns lists, not strings or dicts.**
+All sub-agent outputs in rehearsal are lists of synthetic dicts (stub behaviour). For the live run, real LLM adapters must be wired up. The briefing_document output (intended to be a markdown string) is declared as `schema: object[]` for rehearsal compatibility.
+
+### What's needed before the live run
+
+1. **Wire real channel adapters in executor.py.** Replace hardcoded `[MockChannel()]` in `run_human_approval` with `load_adapters(show)` (or equivalent). This allows Telegram/email/SMS to fire.
+2. **Wire real LLM adapters.** The sub-agent stub in adapters.py must be replaced with actual LiteLLM/Anthropic SDK calls. Until this happens, sub-agent scenes return synthetic data.
+3. **Set env vars** (see Session 4 notes for the full list): `URGENT_TELEGRAM_BOT_TOKEN`, `URGENT_CONTACT_PRIMARY_TELEGRAM_USER_ID`, SMTP config, Twilio config.
+4. **Fix briefing_document schema.** Once real LLMs are wired, scene 005 will return a markdown string. Change output type/schema to `type: string, schema: string` and update `success-when: min-length: 1500` (character count check).
+5. **Mark to review red-line list.** Run the show live, respond to the Telegram urgent matter in scene 004.
+
+### Run command for live run (after env vars set)
+
+```
+python3 cli.py run shows/curiosity-cat-launch-brief.yaml
+```
+
+Do not set `THE_SHOW_URGENT_TIMEOUT` — use the 300-second default so Mark has time to respond.
