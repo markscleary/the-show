@@ -13,33 +13,33 @@ from loader import load_show
 YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
 
 
-def test_run_show_completes(tmp_state_dirs):
+def test_run_show_completes(tmp_state_dirs, fast_approval):
     show = load_show(YAML_PATH)
     result = run_show(show)
     assert result.status == "completed"
 
 
-def test_all_scenes_played(tmp_state_dirs):
+def test_all_scenes_played(tmp_state_dirs, fast_approval):
     show = load_show(YAML_PATH)
     result = run_show(show)
     for scene_id, sc in result.scenes.items():
         assert sc.status in state.SUCCESS_STATES, f"{scene_id}: {sc.status}"
 
 
-def test_principal_used_for_all(tmp_state_dirs):
+def test_principal_used_for_all(tmp_state_dirs, fast_approval):
     show = load_show(YAML_PATH)
     result = run_show(show)
     for sc in result.scenes.values():
         assert sc.selected_strategy is not None
 
 
-def test_cost_recorded(tmp_state_dirs):
+def test_cost_recorded(tmp_state_dirs, fast_approval):
     show = load_show(YAML_PATH)
     result = run_show(show)
     assert result.total_cost_usd > 0
 
 
-def test_events_written_to_db(tmp_state_dirs):
+def test_events_written_to_db(tmp_state_dirs, fast_approval):
     show = load_show(YAML_PATH)
     run_show(show)
     events = state.get_events(show.id)
@@ -49,7 +49,7 @@ def test_events_written_to_db(tmp_state_dirs):
     assert "scene_played" in event_types
 
 
-def test_idempotency_key_event_present(tmp_state_dirs):
+def test_idempotency_key_event_present(tmp_state_dirs, fast_approval):
     show = load_show(YAML_PATH)
     run_show(show)
     events = state.get_events(show.id)
@@ -58,16 +58,18 @@ def test_idempotency_key_event_present(tmp_state_dirs):
     assert len(idem_events) >= 1
 
 
-def test_urgent_contact_stub_event(tmp_state_dirs):
+def test_urgent_contact_resolved_event(tmp_state_dirs, fast_approval):
+    """human-approval scene should produce an urgent_contact_resolved event (APPROVE)."""
     show = load_show(YAML_PATH)
     run_show(show)
     events = state.get_events(show.id)
-    stub_events = [ev for ev in events if ev["event_type"] == "urgent_contact_stubbed"]
-    assert len(stub_events) == 1
-    assert stub_events[0]["scene_id"] == "approve_run"
+    resolved = [ev for ev in events if ev["event_type"] == "urgent_contact_resolved"]
+    assert len(resolved) == 1
+    assert resolved[0]["scene_id"] == "approve_run"
+    assert resolved[0]["payload"]["resolution"] == "APPROVE"
 
 
-def test_outputs_in_db(tmp_state_dirs):
+def test_outputs_in_db(tmp_state_dirs, fast_approval):
     show = load_show(YAML_PATH)
     run_show(show)
     outputs = state.load_scene_outputs(show.id)
