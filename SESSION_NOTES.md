@@ -69,3 +69,27 @@ The brief was detailed enough to work without the spec file. Session 3 should pl
 - **`blocked-no-response`**: The brief mentions this as a state for human-approval scenes that get no response. Since the stub always approves, no show currently reaches this state. It's in `TERMINAL_STATES` and `SUCCESS_STATES` is not modified — downstream scenes of a `blocked-no-response` scene will `cascading-dependency-failure`.
 - **Field validators on any output vs untrusted only**: Implemented to run on any output that declares `field-validators`, regardless of `input_trust`. The log message fires in `run_field_validators` after any successful scene play.
 - **Sub-agent stub input resolution**: Updated to find the first list input regardless of key name (was hardcoded to `contacts` key). This was a latent bug in the Session 1 skeleton.
+
+---
+
+## Session 2 — SQLite State and v0.4.1 Scope
+
+**Completed:**
+- SQLite state layer with WAL mode implemented in state.py
+- Resume capability via rebuild_showstate_from_db
+- 47 tests passing across executor, loader, resume, sanitise, state
+- Markdown-fence sanitisation helper (sanitise.py)
+- Human-approval stub clearly marked for Session 3 replacement
+- Programme generation from SQLite
+- Scene state vocabulary expanded to match v0.4.1 section 20
+- Idempotency key auto-generation for side-effectful scenes
+
+**Known deferred to Session 3:**
+- Real Urgent Contact (stub auto-APPROVES with logged event)
+- Real channel adapters (Session 4)
+- Execution Monitor (Session 5)
+
+**Notes:**
+- Session 2 was executed without the v0.4.1 locked spec in docs/ — work proceeded from v0.2 spec plus Session 1 brief guidance
+- All scope decisions aligned with v0.4.1 section 19 Core v1 minus deferred items
+- Tests and end-to-end verification pass
