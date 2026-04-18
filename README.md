@@ -9,21 +9,28 @@ The locked v0.4.1 spec will be placed in `docs/` when uploaded.
 
 ## Current state
 
-**Runtime:** v0.2 skeleton + Session 1 bug fixes
+**Runtime:** Session 2 — SQLite state, v0.4.1 scope aligned (Urgent Contact stubbed)
 **Spec version target:** v0.4.1 LOCKED
 
 ### What works
-- YAML show loading with kebab-to-snake field conversion (Bug 1 fixed)
-- Scene execution with correct spec order: Principal → Adaptive(Principal) → Fallback 1 → Adaptive(Fallback 1) → … → Cut (Bug 2 fixed)
-- `continue-with-partial` cut condition propagates partial output to downstream scenes
-- Stub adapters for `tool-call` and `sub-agent` methods
-- Programme generation (markdown + JSON) in `.show_output/`
+- SQLite state (`~/.the-show/state/<show-id>.db`, WAL mode)
+- Crash recovery — interrupted shows prompt for resume on next run
+- Full scene state vocabulary including `cascading-dependency-failure` and `played-fallback-N`
+- Per-strategy `success-when` overrides (falls back to scene-level)
+- Basic schema validation in `meets_success` (list / dict / string / number)
+- Markdown-fence sanitisation on untrusted output (`sanitise.py`)
+- Field-validator hook — logs INFO, skips (real validators are a later session)
+- Idempotency key generation for side-effectful strategies (logged to event DB)
+- `human-approval` stub — auto-APPROVEs with TODO pointing to Session 3
+- Programme reads from SQLite event log
+- `tests/` — 47 passing pytest smoke tests
 
-### What doesn't yet
-- **Session 2:** SQLite state persistence
-- **Session 3:** Urgent Contact (blocked-show escalation)
-- **Session 4:** Real channel adapters (Telegram, email, MCP)
-- **Session 5:** Execution Monitor
+### Known stubs (addressed in later sessions)
+- `human-approval` — auto-APPROVEs immediately (Session 3)
+- Execution Monitor — not running (Session 5)
+- Real channel adapters — Telegram / email / MCP not implemented (Session 4)
+- Field-level validators — hook exists, no real validators (later)
+- Basic schema validation only — no JSON Schema deep-validation (later)
 
 ---
 
@@ -37,23 +44,34 @@ uv pip install -r requirements.txt
 # Validate a show file
 uv run python cli.py validate example_show.yaml
 
-# Run a show
+# Run a show (with crash-resume)
 uv run python cli.py run example_show.yaml
 
-# Inspect state file
-uv run python cli.py peek .show_state/outreach-enrichment-001_state.json
+# Inspect current state
+uv run python cli.py peek outreach-enrichment-001
+
+# Regenerate programme from saved state
+uv run python cli.py programme outreach-enrichment-001
+
+# Print event log
+uv run python cli.py events outreach-enrichment-001 [--since=<ISO>] [--limit=N]
+
+# Run tests
+uv run pytest tests/
 ```
 
-Programme output lands in `.show_output/`.
-State files land in `.show_state/`.
+State DB: `~/.the-show/state/<show-id>.db`
+Programme output: `~/.the-show/state/<show-id>/programme.md` and `programme.json`
 
 ## Files
 
-- `models.py` — core dataclasses
+- `models.py` — core dataclasses (Strategy now has `success_when`)
 - `loader.py` — YAML loading and validation
-- `executor.py` — scene execution loop
-- `state.py` — state persistence (JSON for now; SQLite in Session 2)
-- `programme.py` — markdown and JSON reporting
-- `adapters.py` — stub agent/tool execution adapters
-- `cli.py` — CLI entry point
-- `example_show.yaml` — sample show definition
+- `executor.py` — scene execution loop (resume, all v0.4.1 states, stubs)
+- `state.py` — SQLite state layer (WAL, resume, event log)
+- `sanitise.py` — markdown fence stripper for untrusted output
+- `programme.py` — reads from SQLite, generates markdown + JSON
+- `adapters.py` — stub adapters + idempotency key utilities
+- `cli.py` — CLI: validate / run / peek / programme / events
+- `example_show.yaml` — 5-scene example (covers all Session 2 features)
+- `tests/` — pytest suite (47 tests)

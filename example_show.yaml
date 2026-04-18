@@ -7,7 +7,7 @@ show:
 
   sliders:
     risk: housecat
-    improvisation: standard
+    improvisation: standard   # enables adaptive variations
 
   stage-manager:
     mode: deterministic
@@ -28,8 +28,11 @@ show:
         max: 20
 
   running-order:
+
+    # Scene 1 — load the target list from disk (trusted input)
     - scene: load_targets
       title: "Load outreach targets"
+      input-trust: trusted
       outputs:
         contacts:
           type: list
@@ -61,15 +64,39 @@ show:
         condition: escalate
         reason: "Cannot proceed without contacts"
 
+    # Scene 2 — human-approval gate (Session 2 stub: auto-APPROVEs)
+    - scene: approve_run
+      title: "Operator approval check"
+      depends-on: [load_targets]
+      input-trust: trusted
+      outputs:
+        decision:
+          type: string
+          schema: string
+      principal:
+        method: human-approval
+        agent: stage-manager
+        brief: "Do you approve this enrichment run?"
+      success-when:
+        schema: string
+      cut:
+        condition: escalate
+        reason: "Cannot proceed without operator approval"
+
+    # Scene 3 — enrich contacts from agent (untrusted output + adaptive + field-validators)
     - scene: enrich_contacts
       title: "Enrich contacts"
-      depends-on: [load_targets]
+      depends-on: [load_targets, approve_run]
       inputs:
         contacts: from(load_targets.contacts)
+      input-trust: untrusted   # LLM output — run through sanitiser
       outputs:
         enriched_contacts:
           type: list
           schema: enriched_contact[]
+          field-validators:
+            website: "url-allowlist:/path/to/trusted-domains.txt"
+            email: "regex:^[\\w.-]+@[\\w.-]+$"
       principal:
         method: sub-agent
         agent: deep-dive
@@ -104,3 +131,50 @@ show:
       cut:
         condition: continue-with-partial
         minimum-acceptable: 30
+
+    # Scene 4 — filter to qualified contacts
+    - scene: filter_contacts
+      title: "Filter to qualified contacts"
+      depends-on: [enrich_contacts]
+      inputs:
+        enriched_contacts: from(enrich_contacts.enriched_contacts)
+      input-trust: trusted
+      outputs:
+        qualified_contacts:
+          type: list
+          schema: enriched_contact[]
+      principal:
+        method: sub-agent
+        agent: quin
+        brief: |
+          Filter to contacts who have both a title and a website URL.
+        params:
+          batch-size: 20
+      success-when:
+        min-length: 10
+      cut:
+        condition: escalate
+        reason: "Too few qualified contacts to proceed"
+
+    # Scene 5 — write output file (side-effectful: gets idempotency key)
+    - scene: write_output
+      title: "Write output file"
+      depends-on: [filter_contacts]
+      inputs:
+        contacts: from(filter_contacts.qualified_contacts)
+      input-trust: trusted
+      outputs:
+        output_path:
+          type: string
+          schema: string
+      principal:
+        method: tool-call
+        agent: deep-dive
+        action: write-json
+        params:
+          path: /tmp/the-show-output.json
+      success-when:
+        schema: string
+      cut:
+        condition: continue
+        reason: "Output write failed, but data was processed — continuing"

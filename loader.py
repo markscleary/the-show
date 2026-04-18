@@ -28,6 +28,7 @@ def _strategy_from_dict(data: Dict[str, Any]) -> Strategy:
         brief=data.get("brief"),
         params=data.get("params", {}),
         label=data.get("label"),
+        success_when=data.get("success-when", {}),  # per-strategy override
     )
 
 

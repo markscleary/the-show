@@ -21,6 +21,7 @@ class Strategy:
     brief: Optional[str] = None
     params: Dict[str, Any] = field(default_factory=dict)
     label: Optional[str] = None
+    success_when: Dict[str, Any] = field(default_factory=dict)  # per-strategy override; falls back to scene-level
 
 
 @dataclass

@@ -28,7 +28,10 @@ ENV/
 
 # The Show runtime
 .show-state/
+.show_state/
+.show_output/
 *.db
+*.db.abandoned
 
 # Distribution / packaging
 .pytest_cache/
