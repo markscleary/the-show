@@ -122,14 +122,14 @@ def run_human_approval(
     label: str,
 ) -> Tuple[bool, AdapterResult]:
     """Invoke the Urgent Contact dispatcher for a human-approval strategy."""
-    from urgent_contact.dispatcher import UrgentContactDispatcher
-    from urgent_contact.channels.mock import MockChannel
+    from urgent_contact.dispatcher import UrgentContactDispatcher, load_adapters
 
     db_path = get_db_path(state.show_id)
+    adapters = list(load_adapters().values())
     dispatcher = UrgentContactDispatcher(
         db_path=str(db_path),
         show=show,
-        adapters=[MockChannel()],
+        adapters=adapters,
     )
 
     resolution = dispatcher.raise_urgent_matter(
@@ -333,13 +333,13 @@ def _handle_monitor_signals(show_id: str, show: "ShowSettings", state: "ShowStat
         should_escalate = any(escalate_when.get(k) for k in escalation_keys)
 
         if should_escalate and ev["severity"] in ("urgent", "critical"):
-            from urgent_contact.dispatcher import UrgentContactDispatcher
-            from urgent_contact.channels.mock import MockChannel
+            from urgent_contact.dispatcher import UrgentContactDispatcher, load_adapters
             db_path = get_db_path(state.show_id)
+            adapters = list(load_adapters().values())
             dispatcher = UrgentContactDispatcher(
                 db_path=str(db_path),
                 show=show,
-                adapters=[MockChannel()],
+                adapters=adapters,
             )
             details = ev.get("details") or {}
             prompt = (

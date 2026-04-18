@@ -50,13 +50,52 @@ def queue_db(tmp_path, monkeypatch):
     return db
 
 
+@pytest.fixture(autouse=True)
+def mock_sub_agent(monkeypatch):
+    """Patch adapters.call_sub_agent so tests never hit the real LLM proxy.
+
+    Returns a synthetic list of enriched-contact dicts (100 items) which
+    satisfies both the enrich_contacts success-when (min-length: 30) and the
+    filter_contacts success-when (min-length: 10) criteria in example_show.yaml.
+    For other callers, returns a generic list long enough to pass any min-length
+    check up to 100.
+    """
+    import adapters
+
+    def _fake_call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> list:  # type: ignore[return]
+        rows = [
+            {
+                "name": f"Contact {i}",
+                "email": f"c{i}@example.com",
+                "title": "Director",
+                "website": "https://example.com",
+                "linkedin": "https://linkedin.com/in/example",
+                "category_name": f"category-{i}",
+                "description": "Sample category description",
+                "sample_comments": ["Comment A", "Comment B", "Comment C"],
+                "responses": ["Response A", "Response B"],
+                "red_line": False,
+                "red_line_reason": "",
+            }
+            for i in range(100)
+        ]
+        # Embed a cost sentinel so test_cost_recorded still passes
+        rows[0]["_cost_usd"] = 0.05
+        return rows
+
+    monkeypatch.setattr(adapters, "call_sub_agent", _fake_call_sub_agent)
+    return _fake_call_sub_agent
+
+
 @pytest.fixture
-def fast_approval(mock_dirs, monkeypatch):
+def fast_approval(mock_dirs, mock_sub_agent, monkeypatch):
     """Pre-approve the human-approval scene with a known token and fast timing.
 
     Use this on any test that calls run_show() and expects the show to complete.
     Writes a single APPROVE response entry; seen_keys resets per raise_urgent_matter
     call, so one entry covers multiple run_show() invocations.
+
+    Also activates mock_sub_agent so sub-agent scenes don't hit the real LLM proxy.
     """
     import urgent_contact.dispatcher as dispatcher_mod
 

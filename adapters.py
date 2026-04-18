@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import copy
+import json
+import logging
+import os
 import time
 from dataclasses import dataclass, replace
 from typing import Any, Dict, Optional
 from uuid import uuid4
+
+import httpx
 
 
 @dataclass
@@ -48,6 +53,94 @@ def attach_idempotency_key(strategy) -> Any:
     return replace(strategy, params=new_params)
 
 
+def call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> dict:
+    """Make a real LLM call via the LiteLLM proxy and return parsed JSON output.
+
+    Raises:
+        RuntimeError: proxy unreachable or empty response
+        httpx.HTTPStatusError: HTTP 4xx/5xx from proxy
+    """
+    proxy_url = os.getenv("LITELLM_PROXY_URL", "http://localhost:4000")
+    master_key = os.getenv("LITELLM_MASTER_KEY", "")
+
+    try:
+        response = httpx.post(
+            f"{proxy_url}/v1/chat/completions",
+            headers={"Authorization": f"Bearer {master_key}"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_tokens,
+            },
+            timeout=120.0,
+        )
+    except httpx.ConnectError as exc:
+        raise RuntimeError(
+            f"[sub-agent] LiteLLM proxy unreachable at {proxy_url}: {exc}"
+        ) from exc
+
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise httpx.HTTPStatusError(
+            f"[sub-agent] HTTP {response.status_code} from proxy: {response.text[:400]}",
+            request=exc.request,
+            response=exc.response,
+        ) from exc
+
+    data = response.json()
+    choices = data.get("choices")
+    if not choices:
+        raise RuntimeError(f"[sub-agent] Empty choices in proxy response: {data}")
+
+    content = choices[0]["message"]["content"]
+    if not content:
+        raise RuntimeError("[sub-agent] Empty content in proxy response")
+
+    # Compute cost estimate from usage if present
+    cost_est = 0.0
+    usage = data.get("usage")
+    if usage:
+        input_tokens = usage.get("prompt_tokens", 0)
+        output_tokens = usage.get("completion_tokens", 0)
+        # Rough estimate: $3/M input, $15/M output (Opus-tier; adjust per model)
+        cost_est = (input_tokens / 1_000_000) * 3.0 + (output_tokens / 1_000_000) * 15.0
+        logging.info(
+            "[sub-agent] model=%s input_tokens=%d output_tokens=%d cost_est=$%.6f",
+            model,
+            input_tokens,
+            output_tokens,
+            cost_est,
+        )
+
+    def _embed_cost(result: dict | list) -> dict | list:
+        """Embed _cost_usd sentinel into the result so execute_strategy can read it."""
+        if cost_est == 0.0:
+            return result
+        if isinstance(result, dict):
+            result["_cost_usd"] = cost_est
+        elif isinstance(result, list) and result and isinstance(result[0], dict):
+            result[0]["_cost_usd"] = cost_est
+        return result
+
+    # Try to parse as JSON directly
+    try:
+        return _embed_cost(json.loads(content))
+    except json.JSONDecodeError:
+        pass
+
+    # Apply markdown-fence sanitisation then retry JSON parse
+    try:
+        from sanitise import strip_markdown_fences
+    except ImportError:
+        from sanitize import strip_markdown_fences  # type: ignore[no-redef]
+    cleaned = strip_markdown_fences(content)
+    try:
+        return _embed_cost(json.loads(cleaned))
+    except json.JSONDecodeError:
+        return _embed_cost({"text": content})  # fallback: wrap raw text
+
+
 def execute_strategy(strategy, resolved_inputs: Dict[str, Any], rehearsal: bool = False) -> AdapterResult:
     """Stub executor — replace with real integrations in Session 4."""
     start = time.time()
@@ -78,31 +171,64 @@ def execute_strategy(strategy, resolved_inputs: Dict[str, Any], rehearsal: bool 
 
     # --- sub-agent ---
     if strategy.method == "sub-agent":
-        # Find the first list value in resolved_inputs regardless of key name
-        input_list: list = next(
-            (v for v in resolved_inputs.values() if isinstance(v, list)),
-            [],
-        )
-        if not input_list:
-            # Fallback: generate synthetic contacts so stub always returns data
-            input_list = [
-                {"name": f"Contact {i}", "email": f"c{i}@example.com"}
-                for i in range(100)
-            ]
+        model = strategy.params.get("model", "")
+        brief = getattr(strategy, "brief", None) or strategy.params.get("brief", "")
 
-        output = []
-        for item in input_list[:50]:
-            row = dict(item) if isinstance(item, dict) else {"value": item}
-            row.setdefault("title", "Director")
-            row.setdefault("website", "https://example.com")
-            row.setdefault("linkedin", "https://linkedin.com/in/example")
-            output.append(row)
+        # Build prompt: include resolved inputs as context if present
+        if resolved_inputs:
+            context_lines = []
+            for key, val in resolved_inputs.items():
+                serialised = json.dumps(val, indent=2) if not isinstance(val, str) else val
+                context_lines.append(f"--- {key} ---\n{serialised}")
+            context_block = "\n\n".join(context_lines)
+            prompt = f"{brief}\n\n=== INPUTS ===\n{context_block}"
+        else:
+            prompt = brief
+
+        if not prompt:
+            return AdapterResult(
+                success=False,
+                error_type="unsupported",
+                message="sub-agent strategy has no brief or prompt",
+                duration_ms=int((time.time() - start) * 1000),
+                cost_usd=0.0,
+            )
+
+        try:
+            output = call_sub_agent(model=model, prompt=prompt)
+        except RuntimeError as exc:
+            return AdapterResult(
+                success=False,
+                error_type="timeout" if "unreachable" in str(exc).lower() else "unsupported",
+                message=str(exc),
+                duration_ms=int((time.time() - start) * 1000),
+                cost_usd=0.0,
+            )
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code if exc.response is not None else 0
+            error_type = "rate-limit" if status_code == 429 else "unsupported"
+            return AdapterResult(
+                success=False,
+                error_type=error_type,
+                message=str(exc),
+                duration_ms=int((time.time() - start) * 1000),
+                cost_usd=0.0,
+            )
+
+        # Extract cost estimate if the output dict carries a _cost_usd sentinel
+        # (used by call_sub_agent when the proxy returns usage data, and by test mocks)
+        cost_est = 0.0
+        if isinstance(output, dict):
+            cost_est = float(output.pop("_cost_usd", 0.0))
+        elif isinstance(output, list) and output and isinstance(output[0], dict):
+            # Pull from the first item if it's a list and first element carries the key
+            cost_est = float(output[0].pop("_cost_usd", 0.0))
 
         return AdapterResult(
             success=True,
             output=output,
             duration_ms=int((time.time() - start) * 1000),
-            cost_usd=0.25,
+            cost_usd=cost_est,
         )
 
     # --- human-approval is handled by the executor stub before reaching here ---
