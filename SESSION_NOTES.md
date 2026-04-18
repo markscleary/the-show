@@ -146,3 +146,75 @@ Full Urgent Contact system built under `urgent_contact/`:
 - SMS adapter: Twilio? config for account SID / auth token
 - `STOP` keyword: should it abort the entire show immediately, or just block the current scene and let the programme note the early stop?
 - Signed-link base URL: needs a real endpoint for Session 4 (currently just a placeholder string in dispatcher)
+
+---
+
+## Session 4 — Real channel adapters
+
+**Date:** 18 April 2026
+
+### What was done
+
+Four real channel adapters built under `urgent_contact/channels/`:
+
+- **Telegram** (`telegram.py`) — polling with `getUpdates`, channel-native auth, `channel_verified_identity=True` only for configured user IDs; offset-tracked for incremental polls
+- **Email** (`email.py`) — SMTP send via Gmail App Password; four signed action links per email (APPROVE/REJECT/STOP/CONTINUE); HMAC-SHA256 tokens with 24h expiry; `poll_responses` reads from `link_queue.db`
+- **WhatsApp** (`whatsapp.py`) — full skeleton with detailed setup checklist in class docstring; `send()` raises `NotImplementedError`; `poll_responses` functional (reads from `link_queue.db` written by webhook)
+- **SMS** (`sms.py`) — Twilio SDK; reply-token auth; `poll_responses` reads from `link_queue.db` written by `/twilio-webhook`
+
+New support modules:
+
+- `link_queue.py` — shared SQLite at `~/.the-show/link_queue.db` with three tables: `link_responses`, `sms_responses`, `whatsapp_responses`; responses consumed atomically on read
+- `link_server.py` — Flask app on port 5099; routes: `GET /respond` (email), `GET/POST /whatsapp-webhook`, `POST /twilio-webhook`
+- `channels/config.py` — env var helpers for all four channels (reads at call time, not import time)
+
+Dispatcher updated:
+
+- `load_adapters()` function in `dispatcher.py` — registers adapters based on which env vars are set; warns on missing credentials; mock always included
+
+Tests:
+
+- 146 tests passing (21.6 s) — 62 new tests across 5 new test files
+- `test_channels_telegram.py` (13), `test_channels_email.py` (14), `test_channels_whatsapp.py` (11), `test_channels_sms.py` (11), `test_link_server.py` (13)
+
+### Decisions and deviations
+
+**Link queue vs direct urgent_responses write** — The brief specified that the link server should write directly to the `urgent_responses` table in the show's per-show SQLite DB. This was not implemented because:
+1. The email adapter doesn't know which show's DB to read from inside `poll_responses(handle)`
+2. The dispatcher would double-log (calling `log_urgent_response` again after `_process_response`)
+Instead: a shared `~/.the-show/link_queue.db` holds responses. Adapters read from there and return `InboundResponse` with `channel_verified_identity=True` (auth already verified by link server). The dispatcher's normal `_authenticate` + `log_urgent_response` flow runs once on top.
+
+**Email auth method = channel-native, not signed-link** — The email adapter handles HMAC verification internally in the link server before queuing the response. Returning `channel_verified_identity=True` from `poll_responses` means the dispatcher's `channel-native` auth path accepts it cleanly. This avoids forcing the email adapter to embed the dispatcher's signed token in links (which would require the adapter to know the show_id for `verify_signed_token`).
+
+**WhatsApp fully skeletonised** — `send()` raises `NotImplementedError`. Meta Business API onboarding can take days; blocking Telegram + email on it was not acceptable. Full activation steps documented in the class docstring.
+
+**Telegram handle = numeric user_id** — Show YAML contact `handle` for Telegram must be the numeric Telegram user_id (which is also the DM chat_id). Display @usernames cannot be used for `sendMessage` without an additional API call; keeping it simple for v1.
+
+**pip not available in venv** — venv was created without pip (uv venv default). Bootstrapped pip via `get-pip.py` before installing new deps. `requirements.txt` now includes flask, twilio, requests, python-dotenv.
+
+### Adapters status
+
+| Adapter   | Status         | Requires from Mark                                |
+|-----------|----------------|---------------------------------------------------|
+| mock      | Fully working  | Nothing                                           |
+| telegram  | Fully working  | Bot token from BotFather + primary/alternate user IDs |
+| email     | Fully working  | Gmail App Password + signing secret               |
+| whatsapp  | Skeleton only  | Meta Business API onboarding (1–7 days)           |
+| sms       | Fully working  | Twilio account SID + auth token + from number     |
+
+### Env vars Mark needs to provide before live testing
+
+- `URGENT_TELEGRAM_BOT_TOKEN` — create bot via BotFather
+- `URGENT_CONTACT_PRIMARY_TELEGRAM_USER_ID` — numeric user_id (message @userinfobot)
+- `URGENT_CONTACT_ALTERNATE_TELEGRAM_USER_ID` — Greg's numeric user_id
+- `URGENT_SMTP_HOST` / `URGENT_SMTP_USERNAME` / `URGENT_SMTP_PASSWORD` / `URGENT_EMAIL_FROM` — Gmail + App Password
+- `URGENT_EMAIL_SIGNING_SECRET` — random 32-char hex string
+- `URGENT_TWILIO_ACCOUNT_SID` / `URGENT_TWILIO_AUTH_TOKEN` / `URGENT_TWILIO_FROM_NUMBER` — Twilio credentials
+
+Copy `.env.example` → `.env` and fill in. The link server must be running for email links and SMS webhooks to work.
+
+### Open questions for Session 5 (Execution Monitor)
+
+- Should the link server load `.env` automatically on startup? (Currently it does via python-dotenv if installed)
+- The launchd plist has hardcoded env vars — Mark needs to manually copy from `.env` into the plist. Automate in a later session?
+- `STOP` keyword still doesn't abort the show — defer to Session 5 when the execution loop gets refactored for the monitor

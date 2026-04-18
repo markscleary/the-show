@@ -29,6 +29,61 @@ from urgent_contact.throttle import UrgentThrottle
 Resolution = str  # APPROVE | REJECT | STOP | CONTINUE | exhausted | throttled
 
 
+def load_adapters() -> dict[str, "ChannelAdapter"]:
+    """Build adapter dict from env vars. mock is always available."""
+    import logging
+    from urgent_contact.channels.mock import MockChannel
+    from urgent_contact.channels import config as cfg
+
+    adapters: dict[str, ChannelAdapter] = {"mock": MockChannel()}
+
+    token = cfg.telegram_bot_token()
+    if token:
+        from urgent_contact.channels.telegram import TelegramChannel
+        adapters["telegram"] = TelegramChannel(
+            bot_token=token,
+            allowed_user_ids=cfg.telegram_allowed_user_ids(),
+        )
+    else:
+        logging.warning("[adapters] URGENT_TELEGRAM_BOT_TOKEN not set — telegram not loaded")
+
+    smtp = cfg.smtp_config()
+    if smtp and smtp.get("signing_secret"):
+        from urgent_contact.channels.email import EmailChannel
+        adapters["email"] = EmailChannel(
+            smtp_host=str(smtp["smtp_host"]),
+            smtp_port=int(smtp["smtp_port"]),  # type: ignore[arg-type]
+            username=str(smtp["username"]),
+            password=str(smtp["password"]),
+            from_addr=str(smtp["from_addr"]),
+            signing_secret=str(smtp["signing_secret"]),
+            link_base_url=cfg.link_base_url(),
+        )
+    elif not smtp:
+        logging.warning("[adapters] URGENT_SMTP_HOST not set — email not loaded")
+    else:
+        logging.warning("[adapters] URGENT_EMAIL_SIGNING_SECRET not set — email not loaded")
+
+    wa = cfg.whatsapp_config()
+    if wa:
+        from urgent_contact.channels.whatsapp import WhatsAppChannel
+        adapters["whatsapp"] = WhatsAppChannel(**wa)
+    else:
+        logging.warning("[adapters] URGENT_WHATSAPP_ACCESS_TOKEN not set — whatsapp not loaded")
+
+    twilio = cfg.twilio_config()
+    if twilio:
+        try:
+            from urgent_contact.channels.sms import SMSChannel
+            adapters["sms"] = SMSChannel(**twilio)
+        except ImportError:
+            logging.warning("[adapters] twilio not installed — sms not loaded")
+    else:
+        logging.warning("[adapters] URGENT_TWILIO_ACCOUNT_SID not set — sms not loaded")
+
+    return adapters
+
+
 def _default_timeout() -> int:
     """Read timeout at call time so tests can monkeypatch the env var."""
     return int(os.environ.get("THE_SHOW_URGENT_TIMEOUT", "300"))

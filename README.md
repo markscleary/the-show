@@ -9,7 +9,7 @@ The locked v0.4.1 spec will be placed in `docs/` when uploaded.
 
 ## Current state
 
-**Runtime:** Session 3 — Urgent Contact with auth, strict parsing, cancellation, DAG pruning, throttle
+**Runtime:** Session 4 — Real channel adapters: Telegram, email, WhatsApp (skeleton), SMS
 **Spec version target:** v0.4.1 LOCKED
 
 ### What works
@@ -29,14 +29,22 @@ The locked v0.4.1 spec will be placed in `docs/` when uploaded.
   - Exhaustion path (`blocked-no-response`) when all contacts fail to reply
   - DAG pruning: exhausted/blocked scene cascades `cascading-dependency-failure` to all transitive dependents
   - Frequency throttle: default 3 unplanned matters per show; `human-approval` scenes always exempt; `critical` always bypasses
-  - Mock channel for testing (file-drop at `~/.the-show/mock_responses/<matter-id>.json`)
+  - Mock channel for testing (file-drop at `~/.the-show/urgent-mock/`)
+- **Real channel adapters (Session 4):**
+  - **Telegram** — dedicated urgent-contact bot, polling-based, channel-native auth
+  - **Email** — SMTP send + signed action links, HMAC-SHA256 tokens, 24h expiry
+  - **WhatsApp** — skeleton with setup checklist; send() raises NotImplementedError until Meta onboarding complete
+  - **SMS** — Twilio, reply-token auth
+  - **Signed-link server** — Flask app on port 5099; handles email link clicks + WhatsApp / Twilio webhooks
+- `load_adapters()` in `dispatcher.py` — registers only configured adapters; warns if credentials missing; mock always available
 - Programme reads from SQLite event log
-- `tests/` — 84 passing pytest tests
+- `tests/` — 146 passing pytest tests
 
 ### Known stubs (addressed in later sessions)
-- Real channel adapters — Telegram / WhatsApp / email / SMS not yet wired (Session 4)
+- WhatsApp `send()` raises `NotImplementedError` until Mark completes Meta Business API onboarding
+- Link server is localhost-only — needs reverse proxy or Cloudflare Tunnel for WhatsApp/Twilio webhooks
 - Execution Monitor — not running (Session 5)
-- `STOP` keyword — parsed and returned but does not yet abort the whole show (Session 4/5)
+- `STOP` keyword — parsed and returned but does not yet abort the whole show (Session 5)
 - Field-level validators — hook exists, no real validators (later)
 - Basic schema validation only — no JSON Schema deep-validation (later)
 
@@ -112,14 +120,56 @@ The `THE_SHOW_POLL_INTERVAL` environment variable controls the poll delay (secon
   - `parser.py` — strict APPROVE / REJECT / STOP / CONTINUE keyword parser
   - `throttle.py` — per-show matter frequency limit
   - `degradation.py` — DAG pruning for cascading-dependency-failure
-  - `channels/base.py` — ChannelAdapter ABC and InboundResponse type
+  - `channels/base.py` — ChannelAdapter protocol and InboundResponse type
+  - `channels/config.py` — env var config helpers for all channels
   - `channels/mock.py` — file-drop mock channel for testing
-- `tests/` — pytest suite (84 tests)
+  - `channels/telegram.py` — polling Telegram Bot API adapter
+  - `channels/email.py` — SMTP send + signed-link poll adapter
+  - `channels/whatsapp.py` — WhatsApp Business API skeleton
+  - `channels/sms.py` — Twilio SMS adapter
+  - `link_queue.py` — shared SQLite for email/SMS/WhatsApp webhook responses
+  - `link_server.py` — Flask server: `/respond`, `/whatsapp-webhook`, `/twilio-webhook`
+- `tests/` — pytest suite (146 tests)
 
-### Coming in Session 4
-- Real channel adapters: Telegram bot, WhatsApp Business API, email (SMTP/IMAP), SMS (Twilio)
-- `STOP` keyword wired to show-abort path
-- Signed-link base URL configured and served
+### Channel configuration
+
+Copy `.env.example` to `.env` and fill in credentials:
+
+```bash
+cp .env.example .env
+# edit .env
+```
+
+Channels activate automatically when their env vars are set. Missing vars emit a warning and the channel is skipped; the mock channel is always available.
+
+**Telegram** — fastest to activate: create a bot with BotFather and set `URGENT_TELEGRAM_BOT_TOKEN` plus the authorised user IDs.
+
+**Email** — create a Gmail App Password, set `URGENT_SMTP_*` vars and `URGENT_EMAIL_SIGNING_SECRET`.
+
+**WhatsApp** — requires Meta Business API onboarding (1–7 days). See `channels/whatsapp.py` class docstring for the setup checklist.
+
+**SMS** — Twilio account required. Trial accounts can only send to verified numbers.
+
+### Running the link server
+
+The link server receives email link clicks and Twilio/WhatsApp webhooks.
+
+```bash
+# Manual (for development)
+.venv/bin/python -m urgent_contact.link_server
+
+# Via launchd (production — after filling in the plist env vars)
+launchctl load ~/Library/LaunchAgents/org.shortandsweet.urgent-link-server.plist
+```
+
+For WhatsApp and Twilio webhooks (which require HTTPS), use ngrok:
+```bash
+ngrok http 5099
+# Use the resulting https://*.ngrok.io URL in Meta / Twilio dashboards
+```
 
 ### Coming in Session 5
 - Execution Monitor — watches running scenes, triggers Urgent Contact on anomalies
+
+### Coming in Session 6
+- First real show end-to-end with live Telegram notifications

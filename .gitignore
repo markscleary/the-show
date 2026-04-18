@@ -43,6 +43,9 @@ ENV/
 .AppleDouble
 .LSOverride
 
+# Secrets — never commit
+.env
+
 # IDE
 .vscode/
 .idea/

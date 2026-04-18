@@ -42,6 +42,15 @@ def mock_dirs(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def queue_db(tmp_path, monkeypatch):
+    """Redirect link_queue.LINK_QUEUE_DB to a temp file for all channel tests."""
+    import urgent_contact.link_queue as lq
+    db = tmp_path / "link_queue.db"
+    monkeypatch.setattr(lq, "LINK_QUEUE_DB", db)
+    return db
+
+
+@pytest.fixture
 def fast_approval(mock_dirs, monkeypatch):
     """Pre-approve the human-approval scene with a known token and fast timing.
 
