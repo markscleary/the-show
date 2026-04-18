@@ -1,0 +1,106 @@
+show:
+  id: outreach-enrichment-001
+  title: "Outreach enrichment run"
+  rehearsal: false
+  max-duration-seconds: 7200
+  max-scenes: 20
+
+  sliders:
+    risk: housecat
+    improvisation: standard
+
+  stage-manager:
+    mode: deterministic
+
+  bible:
+    objective: "Load targets, enrich contacts, write clean output, report results"
+    escalation:
+      blocked-scenes-consecutive: 2
+      budget-consumed-percentage: 75
+      unexpected-credential-request: true
+      any-scene-duration-over-seconds: 900
+    reporting:
+      programme-format: [markdown, json]
+      deliver-to: [disk]
+    adaptation-bounds:
+      batch-size:
+        min: 2
+        max: 20
+
+  running-order:
+    - scene: load_targets
+      title: "Load outreach targets"
+      outputs:
+        contacts:
+          type: list
+          schema: contact[]
+      principal:
+        method: tool-call
+        agent: deep-dive
+        action: read-csv
+        params:
+          path: /Users/mark/S+S/outreach/targets.csv
+      fallbacks:
+        - label: backup-file
+          method: tool-call
+          agent: deep-dive
+          action: read-csv
+          params:
+            path: /Users/mark/S+S/outreach/targets-backup.csv
+      success-when:
+        schema: contact[]
+        min-length: 50
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 1
+        jitter: true
+        retriable-errors: [rate-limit, timeout, io-error]
+      timeout-seconds: 60
+      cut:
+        condition: escalate
+        reason: "Cannot proceed without contacts"
+
+    - scene: enrich_contacts
+      title: "Enrich contacts"
+      depends-on: [load_targets]
+      inputs:
+        contacts: from(load_targets.contacts)
+      outputs:
+        enriched_contacts:
+          type: list
+          schema: enriched_contact[]
+      principal:
+        method: sub-agent
+        agent: deep-dive
+        brief: |
+          Enrich each contact with current title, website, and LinkedIn URL.
+        params:
+          batch-size: 10
+      fallbacks:
+        - label: alternative-agent
+          method: sub-agent
+          agent: quin
+          brief: |
+            Enrich each contact with current title, website, and LinkedIn URL.
+          params:
+            batch-size: 5
+      adaptive:
+        allowed: true
+        bounds:
+          batch-size:
+            min: 3
+            max: 10
+      success-when:
+        schema: enriched_contact[]
+        min-length: 30
+      retry-policy:
+        max-attempts: 3
+        backoff: exponential
+        base-delay-seconds: 1
+        jitter: true
+        retriable-errors: [rate-limit, timeout, 5xx]
+      timeout-seconds: 600
+      cut:
+        condition: continue-with-partial
+        minimum-acceptable: 30
