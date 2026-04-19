@@ -30,10 +30,18 @@ Resolution = str  # APPROVE | REJECT | STOP | CONTINUE | exhausted | throttled
 
 
 def load_adapters() -> dict[str, "ChannelAdapter"]:
-    """Build adapter dict from env vars. mock is always available."""
+    """Build adapter dict from env vars. mock is always available.
+
+    If SHOW_TEST_MODE=1, returns only MockChannel regardless of env vars.
+    """
     import logging
+    import os
     from urgent_contact.channels.mock import MockChannel
     from urgent_contact.channels import config as cfg
+
+    if os.environ.get("SHOW_TEST_MODE") == "1":
+        logging.warning("[adapters] SHOW_TEST_MODE=1 — forcing MockChannel for all channels")
+        return {"mock": MockChannel()}
 
     adapters: dict[str, ChannelAdapter] = {"mock": MockChannel()}
 

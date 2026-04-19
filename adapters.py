@@ -53,16 +53,15 @@ def attach_idempotency_key(strategy) -> Any:
     return replace(strategy, params=new_params)
 
 
-def call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> dict:
-    """Make a real LLM call via the LiteLLM proxy and return parsed JSON output.
+_FALLBACK_MODEL = "qwen-noThink"
+_RETRIABLE_STATUS_CODES = {429, 502, 503}
 
-    Raises:
-        RuntimeError: proxy unreachable or empty response
-        httpx.HTTPStatusError: HTTP 4xx/5xx from proxy
-    """
-    proxy_url = os.getenv("LITELLM_PROXY_URL", "http://localhost:4000")
-    master_key = os.getenv("LITELLM_MASTER_KEY", "")
+# Indirection so tests can monkeypatch without touching the global time module
+_sleep = time.sleep
 
+
+def _do_llm_call(proxy_url: str, master_key: str, model: str, prompt: str, max_tokens: int) -> dict:
+    """Single (non-retrying) HTTP call to the LiteLLM proxy. Returns parsed output dict."""
     try:
         response = httpx.post(
             f"{proxy_url}/v1/chat/completions",
@@ -74,10 +73,8 @@ def call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> dict:
             },
             timeout=120.0,
         )
-    except httpx.ConnectError as exc:
-        raise RuntimeError(
-            f"[sub-agent] LiteLLM proxy unreachable at {proxy_url}: {exc}"
-        ) from exc
+    except httpx.ConnectError:
+        raise  # caller handles
 
     try:
         response.raise_for_status()
@@ -97,24 +94,18 @@ def call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> dict:
     if not content:
         raise RuntimeError("[sub-agent] Empty content in proxy response")
 
-    # Compute cost estimate from usage if present
     cost_est = 0.0
     usage = data.get("usage")
     if usage:
         input_tokens = usage.get("prompt_tokens", 0)
         output_tokens = usage.get("completion_tokens", 0)
-        # Rough estimate: $3/M input, $15/M output (Opus-tier; adjust per model)
         cost_est = (input_tokens / 1_000_000) * 3.0 + (output_tokens / 1_000_000) * 15.0
         logging.info(
             "[sub-agent] model=%s input_tokens=%d output_tokens=%d cost_est=$%.6f",
-            model,
-            input_tokens,
-            output_tokens,
-            cost_est,
+            model, input_tokens, output_tokens, cost_est,
         )
 
     def _embed_cost(result: dict | list) -> dict | list:
-        """Embed _cost_usd sentinel into the result so execute_strategy can read it."""
         if cost_est == 0.0:
             return result
         if isinstance(result, dict):
@@ -123,13 +114,11 @@ def call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> dict:
             result[0]["_cost_usd"] = cost_est
         return result
 
-    # Try to parse as JSON directly
     try:
         return _embed_cost(json.loads(content))
     except json.JSONDecodeError:
         pass
 
-    # Apply markdown-fence sanitisation then retry JSON parse
     try:
         from sanitise import strip_markdown_fences
     except ImportError:
@@ -138,7 +127,61 @@ def call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> dict:
     try:
         return _embed_cost(json.loads(cleaned))
     except json.JSONDecodeError:
-        return _embed_cost({"text": content})  # fallback: wrap raw text
+        return _embed_cost({"text": content})
+
+
+def call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> dict:
+    """Make a real LLM call via the LiteLLM proxy with retry and Qwen fallback.
+
+    Retries up to 3 times with exponential backoff on transient errors (ConnectError,
+    429/502/503). If the primary model exhausts all attempts, falls back to
+    _FALLBACK_MODEL (qwen-noThink via local Ollama through the proxy).
+
+    Raises:
+        RuntimeError: proxy unreachable after all retries and fallback
+        httpx.HTTPStatusError: non-retriable HTTP error
+    """
+    proxy_url = os.getenv("LITELLM_PROXY_URL", "http://localhost:4000")
+    master_key = os.getenv("LITELLM_MASTER_KEY", "")
+
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, 4):
+        try:
+            return _do_llm_call(proxy_url, master_key, model, prompt, max_tokens)
+        except httpx.ConnectError as exc:
+            last_exc = exc
+            logging.warning(
+                "[sub-agent] Attempt %d/3: proxy unreachable at %s: %s",
+                attempt, proxy_url, exc,
+            )
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code if exc.response is not None else 0
+            if status in _RETRIABLE_STATUS_CODES:
+                last_exc = exc
+                logging.warning(
+                    "[sub-agent] Attempt %d/3: HTTP %d from proxy", attempt, status
+                )
+            else:
+                raise
+        if attempt < 3:
+            _sleep(2 ** (attempt - 1))
+
+    # Primary model exhausted — try fallback if it's a different model
+    if model != _FALLBACK_MODEL:
+        logging.warning(
+            "[sub-agent] Primary model '%s' failed after 3 attempts — falling back to '%s'",
+            model, _FALLBACK_MODEL,
+        )
+        try:
+            return _do_llm_call(proxy_url, master_key, _FALLBACK_MODEL, prompt, max_tokens)
+        except (httpx.ConnectError, httpx.HTTPStatusError, RuntimeError) as exc:
+            raise RuntimeError(
+                f"[sub-agent] Primary '{model}' and fallback '{_FALLBACK_MODEL}' both failed: {exc}"
+            ) from exc
+
+    raise RuntimeError(
+        f"[sub-agent] LiteLLM proxy unreachable at {proxy_url} after 3 attempts: {last_exc}"
+    ) from last_exc
 
 
 def execute_strategy(strategy, resolved_inputs: Dict[str, Any], rehearsal: bool = False) -> AdapterResult:
