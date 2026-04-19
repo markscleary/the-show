@@ -2,7 +2,7 @@
 
 **Version:** 0.4.1 (LOCKED — Section 11 patched, spec frozen for build)
 **Date:** 18 April 2026
-**Authors:** Mark Cleary (framework, theatre grounding, the urgent contact concept), Claude Opus 4.7 (drafting), with structural input from iterative review.
+**Authors:** Mark Cleary (framework, theatre grounding, the urgent contact concept), with drafting support and iterative review.
 **Previous versions:** v0.1, v0.2, v0.3, v0.4
 
 ---
@@ -769,9 +769,9 @@ No language model is called inside `play_scene` or `raise_urgent_matter`. The St
 
 ## 25. Attribution
 
-The framework was developed by Mark Cleary in conversation with Claude Opus 4.7. The theatrical grounding, the lifecycle trim to Opening Night, the Exploration slider naming (Home / Edge of the World / Here Be Dragons), the Urgent Contact concept (including the graceful degradation pattern and the register correction from "emergency" to "urgent"), and the insistence throughout that the framework enable rather than prescribe — these come from Mark directly.
+The framework was developed by Mark Cleary. The theatrical grounding, the lifecycle trim to Opening Night, the Exploration slider naming (Home / Edge of the World / Here Be Dragons), the Urgent Contact concept (including the graceful degradation pattern and the register correction from "emergency" to "urgent"), and the insistence throughout that the framework enable rather than prescribe — these come from Mark directly.
 
-The spec was refined across multiple structural review passes and the final version reflects that iterative process.
+The spec was developed through iterative review and refined based on structural critique.
 
 The Show is part of a larger project by Short+Sweet International to build infrastructure for creative and operational autonomy. S+S itself began in 1998 because writers in Australia had no platform. Operators setting their agents loose today are in a similar position. The Show is one of the frames we're offering.
 
