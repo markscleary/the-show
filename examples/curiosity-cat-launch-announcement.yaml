@@ -1,0 +1,221 @@
+show:
+  id: curiosity-cat-launch-001
+  title: "Curiosity Cat launch announcement — three languages"
+  rehearsal: false
+  max-duration-seconds: 1800
+  max-scenes: 10
+
+  sliders:
+    risk: housecat
+    improvisation: script
+
+  stage-manager:
+    mode: deterministic
+
+  bible:
+    objective: "Draft Curiosity Cat launch announcements in three languages, get operator approval, compile final delivery"
+    escalation:
+      blocked-scenes-consecutive: 2
+      budget-consumed-percentage: 80
+    reporting:
+      programme-format: [markdown, json]
+      deliver-to: [disk]
+
+  # ── Urgent Contact — Telegram (Quin's bot, Mark's user ID) ───────────────────
+  urgent-contact:
+    mode: sequential
+    max-per-show: 3
+    send-interval-seconds: 15
+    contacts:
+      - role: operator
+        channel: telegram
+        handle: "8406661245"
+        auth: channel-native
+
+  running-order:
+
+    # Scene 1 — draft English announcement
+    - scene: draft_english
+      title: "Draft English announcement"
+      input-trust: untrusted
+      outputs:
+        post:
+          type: object
+          schema: draft
+      principal:
+        method: sub-agent
+        agent: gemini
+        brief: |
+          Draft a short social media announcement (max 280 characters) for Curiosity Cat,
+          an open-source AI agent safety framework just launched by Short+Sweet International.
+          Key points to convey: it launched today, it's the first agent safety tool with an
+          "adventure slider" from Housecat to Tiger, it's free on npm and PyPI, it launched
+          in English/Arabic/Mandarin, link is curiositycat.online.
+          Tone: direct, a little playful, no corporate jargon, no hedging.
+          Australian English. En dashes. No Oxford commas.
+          Return JSON only, no markdown fences: {"text": "<the post>", "char_count": <integer>}
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 3
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 120
+      cut:
+        condition: escalate
+        reason: "Cannot proceed without English draft"
+
+    # Scene 2 — draft Arabic announcement (depends on English draft for reference)
+    - scene: draft_arabic
+      title: "Draft Arabic announcement"
+      depends-on: [draft_english]
+      inputs:
+        english_post: from(draft_english.post)
+      input-trust: untrusted
+      outputs:
+        post:
+          type: object
+          schema: draft
+      principal:
+        method: sub-agent
+        agent: gemini
+        brief: |
+          You have received an English social media announcement (see INPUTS below).
+          Translate it to Arabic for the UAE/GCC market. Natural Arabic, not literal translation.
+          Keep under 280 characters. Preserve the URL curiositycat.online as-is.
+          Return JSON only, no markdown fences: {"text": "<Arabic post>", "char_count": <integer>}
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 3
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 120
+      cut:
+        condition: escalate
+        reason: "Cannot proceed without Arabic draft"
+
+    # Scene 3 — draft Mandarin announcement (depends on English draft for reference)
+    - scene: draft_mandarin
+      title: "Draft Mandarin announcement"
+      depends-on: [draft_english]
+      inputs:
+        english_post: from(draft_english.post)
+      input-trust: untrusted
+      outputs:
+        post:
+          type: object
+          schema: draft
+      principal:
+        method: sub-agent
+        agent: gemini
+        brief: |
+          You have received an English social media announcement (see INPUTS below).
+          Translate it to Mandarin Chinese (Simplified) for the mainland market. Natural Mandarin,
+          not literal translation. Keep under 140 characters (roughly equivalent to 280 English chars).
+          Preserve the URL curiositycat.online as-is.
+          Return JSON only, no markdown fences: {"text": "<Mandarin post>", "char_count": <integer>}
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 3
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 120
+      cut:
+        condition: escalate
+        reason: "Cannot proceed without Mandarin draft"
+
+    # Scene 4 — operator approval gate via Telegram
+    - scene: approve_drafts
+      title: "Operator approval — all three language drafts"
+      depends-on: [draft_english, draft_arabic, draft_mandarin]
+      input-trust: trusted
+      outputs:
+        decision:
+          type: string
+          schema: string
+      principal:
+        method: human-approval
+        agent: stage-manager
+        severity: urgent
+        brief: |
+          Three Curiosity Cat launch posts are ready for approval.
+
+          Programme: curiosity-cat-launch-001
+          Show: curiosity-cat-launch-announcement — three languages
+
+          Three drafts have been generated: English, Arabic and Mandarin.
+          Check the show state for draft content (cli.py peek curiosity-cat-launch-001).
+
+          Reply APPROVE to proceed with final delivery.
+          Reply REJECT to abort (drafts will remain in state for review).
+          Reply STOP to abort immediately.
+      success-when:
+        schema: string
+      timeout-seconds: 600
+      cut:
+        condition: escalate
+        reason: "Cannot deliver without operator approval"
+
+    # Scene 5 — compile and deliver final announcements
+    - scene: deliver_final
+      title: "Compile and deliver final announcements"
+      depends-on: [approve_drafts]
+      inputs:
+        english_post: from(draft_english.post)
+        arabic_post: from(draft_arabic.post)
+        mandarin_post: from(draft_mandarin.post)
+        decision: from(approve_drafts.decision)
+      input-trust: trusted
+      outputs:
+        delivery:
+          type: object
+          schema: delivery_record
+      principal:
+        method: sub-agent
+        agent: gemini
+        brief: |
+          You are compiling the approved launch posts for Curiosity Cat.
+          See INPUTS for the three language drafts and the operator decision.
+
+          Compile a final delivery record. Include each post with its language label
+          and character count. Add a metadata header with:
+            - Programme: curiosity-cat-launch-001
+            - Date: 2026-04-19
+            - Operator decision: (from the decision input)
+
+          Format the markdown document as a clean, readable file suitable for
+          handing to a social media team.
+
+          Return JSON only, no markdown fences:
+          {
+            "output_path": "examples/outputs/curiosity-cat-announcement-final.md",
+            "languages_included": ["english", "arabic", "mandarin"],
+            "content": "<full markdown document with all three posts, properly formatted>"
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 120
+      cut:
+        condition: continue
+        reason: "Delivery compilation failed — drafts are still in state"
