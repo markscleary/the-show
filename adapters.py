@@ -60,6 +60,23 @@ _RETRIABLE_STATUS_CODES = {429, 502, 503}
 _sleep = time.sleep
 
 
+def _unwrap_gemini_envelope(output: Any) -> Any:
+    """Strip the {"content": {...}, "metadata": {...}} envelope Gemini Flash sometimes emits.
+
+    Gemini Flash occasionally wraps its JSON payload in an extra layer:
+        {"content": <the actual payload>, "metadata": {...}}
+    instead of returning just the payload.  This function detects that pattern
+    and returns only the inner content dict.
+    """
+    if (
+        isinstance(output, dict)
+        and set(output.keys()) == {"content", "metadata"}
+        and isinstance(output["content"], dict)
+    ):
+        return output["content"]
+    return output
+
+
 def _do_llm_call(proxy_url: str, master_key: str, model: str, prompt: str, max_tokens: int) -> dict:
     """Single (non-retrying) HTTP call to the LiteLLM proxy. Returns parsed output dict."""
     try:
@@ -266,6 +283,10 @@ def execute_strategy(strategy, resolved_inputs: Dict[str, Any], rehearsal: bool 
         elif isinstance(output, list) and output and isinstance(output[0], dict):
             # Pull from the first item if it's a list and first element carries the key
             cost_est = float(output[0].pop("_cost_usd", 0.0))
+
+        # Strip Gemini envelope {"content": {...}, "metadata": {...}} if present.
+        # Must run after _cost_usd extraction so the key-set check is clean.
+        output = _unwrap_gemini_envelope(output)
 
         return AdapterResult(
             success=True,

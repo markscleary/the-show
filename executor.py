@@ -132,11 +132,19 @@ def run_human_approval(
         adapters=adapters,
     )
 
+    from datetime import datetime, timedelta, timezone as tz
+    if scene.timeout_seconds:
+        deadline_iso = (
+            datetime.now(tz.utc) + timedelta(seconds=scene.timeout_seconds)
+        ).isoformat()
+    else:
+        deadline_iso = None
+
     resolution = dispatcher.raise_urgent_matter(
         trigger_type="human-approval",
         severity=strategy.severity or "urgent",
         prompt=strategy.brief or scene.title,
-        deadline=None,
+        deadline=deadline_iso,
         scene_id=scene.scene,
     )
 

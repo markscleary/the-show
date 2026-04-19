@@ -239,3 +239,64 @@ def test_meets_success_accepts_correct_type_for_list_schema():
 def test_meets_success_accepts_correct_type_for_dict_schema():
     """Schema check: dict schema accepts a dict."""
     assert meets_success({"key": "val"}, {"schema": "Record"}) is True
+
+
+# ── Double-wrap / Gemini envelope ─────────────────────────────────────────────
+
+def test_sub_agent_unwraps_gemini_content_metadata_envelope(monkeypatch):
+    """Gemini Flash sometimes wraps its output as {"content": {...}, "metadata": {...}}.
+    execute_strategy must strip the envelope and store only the inner content dict.
+
+    Note: conftest patches call_sub_agent globally; this test overrides that patch to
+    inject the Gemini-wrapped payload directly into the execute_strategy pipeline.
+    """
+    from adapters import execute_strategy
+    from models import Strategy
+
+    inner = {"text": "hello", "char_count": 5}
+    wrapped = {"content": inner, "metadata": {"model": "gemini-flash"}}
+
+    # Override the conftest autouse mock so we control what call_sub_agent returns.
+    monkeypatch.setattr(adapters, "call_sub_agent", lambda model, prompt, **kw: dict(wrapped))
+
+    strategy = Strategy(
+        method="sub-agent",
+        agent="gemini",
+        params={"model": "gemini-flash"},
+        brief="Write a post",
+    )
+    result = execute_strategy(strategy, {})
+
+    assert result.success is True
+    assert result.output == inner, (
+        f"Expected inner payload {inner!r}, got {result.output!r} — Gemini envelope was not stripped"
+    )
+
+
+def test_sub_agent_schema_payload_not_double_wrapped(monkeypatch):
+    """When LiteLLM returns the expected schema payload as message content, the
+    sub-agent returns it unchanged — no outer wrapper, no metadata field, no content field.
+
+    Note: conftest patches call_sub_agent globally; this test overrides that patch to
+    inject the clean payload directly into the execute_strategy pipeline.
+    """
+    from adapters import execute_strategy
+    from models import Strategy
+
+    expected = {"text": "hello", "char_count": 5}
+
+    # Override the conftest autouse mock so we control what call_sub_agent returns.
+    monkeypatch.setattr(adapters, "call_sub_agent", lambda model, prompt, **kw: dict(expected))
+
+    strategy = Strategy(
+        method="sub-agent",
+        agent="gemini",
+        params={"model": "gemini-flash"},
+        brief="Write a post",
+    )
+    result = execute_strategy(strategy, {})
+
+    assert result.success is True
+    assert result.output == expected
+    assert "content" not in result.output
+    assert "metadata" not in result.output

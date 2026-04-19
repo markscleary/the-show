@@ -520,6 +520,40 @@ def test_exhaustion_returns_exhausted_string(tmp_state_dirs, mock_dirs, monkeypa
     assert result == "exhausted"
 
 
+def test_yaml_deadline_not_capped_by_max_wait(tmp_state_dirs, mock_dirs, monkeypatch):
+    """Explicit deadline from YAML timeout-seconds is honoured; THE_SHOW_MAX_WAIT must not shorten it.
+
+    Bug: max_wait was applied even when an explicit deadline was provided, so a low
+    THE_SHOW_MAX_WAIT value (e.g. left over from a test run) would silently override
+    the YAML-declared timeout.  After the fix the cap is only applied on the default
+    (deadline=None) path.
+    """
+    import time as _time
+    from datetime import datetime, timedelta, timezone
+
+    show = _make_show()
+    initialize_state(ShowSettings(id=show.id, title="T", running_order=[]))
+    db_path = str(state_module.STATE_BASE / f"{show.id}.db")
+
+    # THE_SHOW_MAX_WAIT=0.1s would have fired the timeout at ~100 ms before the fix.
+    monkeypatch.setenv("THE_SHOW_MAX_WAIT", "0.1")
+    monkeypatch.setenv("THE_SHOW_POLL_INTERVAL", "0.05")
+
+    # Explicit deadline ~1.5 seconds from now (simulates YAML timeout-seconds: N)
+    explicit_deadline = (datetime.now(timezone.utc) + timedelta(seconds=1.5)).isoformat()
+
+    start = _time.time()
+    dispatcher = _make_dispatcher(show, db_path)
+    result = dispatcher.raise_urgent_matter("human-approval", "urgent", "Approve?", explicit_deadline)
+    elapsed = _time.time() - start
+
+    assert result == "exhausted"
+    # Must have waited close to 1.5 s, not the 0.1 s that THE_SHOW_MAX_WAIT would have imposed.
+    assert elapsed >= 1.0, (
+        f"Timeout fired after only {elapsed:.2f}s — THE_SHOW_MAX_WAIT overrode the YAML deadline"
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Throttle
 # ──────────────────────────────────────────────────────────────────────────────
