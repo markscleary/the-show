@@ -102,6 +102,7 @@ def load_show(path: str | Path) -> ShowSettings:
             input_trust=item.get("input-trust", {}).get("level", "trusted")
                 if isinstance(item.get("input-trust"), dict)
                 else item.get("input-trust", "trusted"),
+            must_complete=item.get("must-complete", False),
         )
         scenes.append(scene)
 
