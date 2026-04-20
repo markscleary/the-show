@@ -90,7 +90,7 @@ show:
             "notes": "<any important observations>"
           }
         params:
-          model: claude-sonnet-4-6
+          model: gemini-flash
       success-when:
         schema: object
       retry-policy:
@@ -151,7 +151,7 @@ show:
             "notes": "<any important observations>"
           }
         params:
-          model: claude-sonnet-4-6
+          model: gemini-flash
       success-when:
         schema: object
       retry-policy:
@@ -212,7 +212,7 @@ show:
             "notes": "<any important observations>"
           }
         params:
-          model: claude-sonnet-4-6
+          model: gemini-flash
       success-when:
         schema: object
       retry-policy:
@@ -281,7 +281,7 @@ show:
             "notes": "<any important observations>"
           }
         params:
-          model: claude-sonnet-4-6
+          model: gemini-flash
       success-when:
         schema: object
       retry-policy:
@@ -391,7 +391,7 @@ show:
             "notes": "<any important observations>"
           }
         params:
-          model: claude-sonnet-4-6
+          model: gemini-flash
       success-when:
         schema: object
       retry-policy:
@@ -469,7 +469,7 @@ show:
             "notes": "<any observations>"
           }
         params:
-          model: claude-sonnet-4-6
+          model: gemini-flash
       success-when:
         schema: object
       retry-policy:
@@ -572,7 +572,7 @@ show:
             "notes": "<any observations>"
           }
         params:
-          model: claude-sonnet-4-6
+          model: gemini-flash
       success-when:
         schema: object
       retry-policy:
