@@ -12,12 +12,13 @@ from email.mime.text import MIMEText
 from typing import List, Optional
 
 from urgent_contact.channels.base import InboundResponse
+from urgent_contact.channels.adapter_base import AbstractChannelAdapter
 from urgent_contact import link_queue
 
 _ACTIONS = ["APPROVE", "REJECT", "STOP", "CONTINUE"]
 
 
-class EmailChannel:
+class EmailChannel(AbstractChannelAdapter):
     """SMTP email adapter with signed-link authentication.
 
     Authentication is handled internally: the link server verifies the HMAC token
@@ -29,6 +30,8 @@ class EmailChannel:
 
     channel_type = "email"
     supported_auth_methods = ["channel-native"]
+    timeout_seconds = 30
+    retry_policy = {"max_attempts": 3, "backoff": "exponential"}
 
     def __init__(
         self,
@@ -114,6 +117,9 @@ class EmailChannel:
 
     def supports_cancellation(self) -> bool:
         return False
+
+    def error_surface(self):
+        return ["timeout", "smtp-error", "rate-limit"]
 
     # ──────────────────────────────────────────────────────────────────────────
 

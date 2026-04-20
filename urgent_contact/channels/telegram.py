@@ -6,9 +6,10 @@ from typing import List, Optional, Set
 import requests
 
 from urgent_contact.channels.base import InboundResponse
+from urgent_contact.channels.adapter_base import AbstractChannelAdapter
 
 
-class TelegramChannel:
+class TelegramChannel(AbstractChannelAdapter):
     """Polling-based Telegram adapter using the Bot API.
 
     handle = Telegram chat_id (== numeric user_id for DMs).
@@ -17,6 +18,8 @@ class TelegramChannel:
 
     channel_type = "telegram"
     supported_auth_methods = ["channel-native"]
+    timeout_seconds = 30
+    retry_policy = {"max_attempts": 3, "backoff": "exponential"}
 
     def __init__(self, bot_token: str, allowed_user_ids: List[str]) -> None:
         self._token = bot_token
