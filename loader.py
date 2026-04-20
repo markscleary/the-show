@@ -86,6 +86,8 @@ def load_show(path: str | Path) -> ShowSettings:
         retry_policy = _retry_policy_from_dict(item.get("retry-policy", {}))
         cut = _cut_rule_from_dict(item.get("cut", {}))
         adaptive = _adaptive_from_dict(item.get("adaptive", {}))
+        _is_approval_gate = item.get("principal", {}).get("method") == "human-approval"
+        _default_timeout = 604800 if _is_approval_gate else 60
         scene = Scene(
             scene=item["scene"],
             title=item["title"],
@@ -96,7 +98,7 @@ def load_show(path: str | Path) -> ShowSettings:
             fallbacks=fallbacks,
             success_when=item.get("success-when", {}),
             retry_policy=retry_policy,
-            timeout_seconds=item.get("timeout-seconds", 60),
+            timeout_seconds=item.get("timeout-seconds", _default_timeout),
             cut=cut,
             adaptive=adaptive,
             input_trust=item.get("input-trust", {}).get("level", "trusted")
@@ -146,3 +148,9 @@ def validate_show(show: ShowSettings) -> None:
             raise ValidationError(f"Scene {scene.scene} must declare outputs.")
         if scene.input_trust not in {"trusted", "untrusted"}:
             raise ValidationError(f"Scene {scene.scene} has invalid input_trust.")
+        if scene.principal.method == "human-approval" and scene.timeout_seconds < 86400:
+            print(
+                f"[WARN] Scene '{scene.scene}' is an approval gate with timeout_seconds="
+                f"{scene.timeout_seconds} (less than 24 hours). "
+                f"Consider whether this is intentional — approval gates should wait for humans."
+            )
