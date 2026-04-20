@@ -1,0 +1,587 @@
+show:
+  id: build-v1.0-release
+  title: "The Show v1.0 build programme — dog-food run"
+  rehearsal: false
+  max-duration-seconds: 86400   # 24 hours — overnight run with two approval gates
+  max-scenes: 20
+
+  sliders:
+    risk: housecat
+    improvisation: script         # deterministic execution, no adaptive variations
+
+  stage-manager:
+    mode: deterministic
+
+  bible:
+    objective: |
+      Build The Show v1.0 by running it through The Show itself. Nine scenes cover
+      SQLAlchemy migration, skip semantics, v0.4.2 patch completion, adapter contract
+      formalisation, two human approval gates, a theatrical example programme, operator
+      documentation, release preparation, and final tagging.
+    escalation:
+      blocked-scenes-consecutive: 1
+      budget-consumed-percentage: 90
+      any-scene-duration-over-seconds: 7200
+    reporting:
+      programme-format: [markdown, json]
+      deliver-to: [disk]
+
+  # ── Urgent Contact — Telegram via Quin bot ───────────────────────────────────
+  urgent-contact:
+    mode: sequential
+    max-per-show: 5
+    send-interval-seconds: 30
+    contacts:
+      - role: operator
+        channel: telegram
+        handle: "8406661245"
+        auth: channel-native
+
+  running-order:
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 1 — SQLAlchemy + Alembic migration
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: sqlalchemy_migration
+      title: "Introduce SQLAlchemy Core and Alembic — migrate state to explicit schemas"
+      input-trust: trusted
+      outputs:
+        result:
+          type: object
+          schema: object
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          You are implementing SQLAlchemy Core + Alembic for The Show at
+          /Users/markshortandsweet.org/the-show.
+
+          Current state: SQLite is managed via raw sqlite3 calls in state.py. All schema
+          is implicit in CREATE TABLE strings inside state.py.
+
+          Task:
+          1. Install sqlalchemy and alembic (add to requirements if present, else document).
+          2. Create alembic.ini and alembic/env.py pointing at ~/.the-show/state/<show_id>.db.
+          3. Create the initial migration (alembic revision --autogenerate or manual) that
+             produces explicit DDL for these 11 tables, matching the existing column names
+             exactly so no data is lost:
+               programmes, scenes, runs, urgent_contacts, signed_tokens,
+               responses, retries, costs, adapter_invocations,
+               schema_validations, delivery_artefacts
+             Note: the existing tables are: shows, scenes, attempts, monitor_events,
+             urgent_matters, urgent_sends, urgent_responses, scene_outputs, events.
+             Map the new names to the existing tables or create additive tables — do not
+             drop data. The mapping is conceptual: "programmes"=shows, "runs"=attempts, etc.
+          4. Keep the existing sqlite3 calls in state.py working (don't break them).
+             SQLAlchemy is additive for now — use it for new queries, not a full rewrite.
+          5. Add at least 4 migration tests to tests/test_sqlalchemy_migration.py:
+             - migration runs without error on a fresh DB
+             - migration is idempotent (run twice is safe)
+             - existing state.py functions still work after migration
+             - alembic current reports the correct revision
+          6. Run the full test suite: python3 -m pytest --tb=short -q
+          7. Commit with message: "feat: introduce SQLAlchemy Core + Alembic (scene 1 of v1.0 build)"
+
+          Return JSON only, no markdown fences:
+          {
+            "commit_sha": "<7-char git SHA or 'pending-manual-apply'>",
+            "tests_added": <integer>,
+            "tests_passing": <integer>,
+            "notes": "<any important observations>"
+          }
+        params:
+          model: claude-sonnet-4-6
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 5
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 7200
+      cut:
+        condition: escalate
+        reason: "SQLAlchemy migration is a prerequisite for all other scenes"
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 2 — Dependency skip semantics
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: dependency_skip_semantics
+      title: "Implement explicit skip-propagation for dependency-aware scene execution"
+      depends-on: [sqlalchemy_migration]
+      input-trust: trusted
+      outputs:
+        result:
+          type: object
+          schema: object
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          You are implementing skip-propagation in The Show executor at
+          /Users/markshortandsweet.org/the-show/executor.py.
+
+          Current behaviour: when a scene is skipped (dependency unresolved), its
+          dependents are marked "cut" or "cascading-dependency-failure" but there is
+          no explicit skip-reason tracking or consistent skip state.
+
+          Task:
+          1. Add a "skipped" status to TERMINAL_STATES and SUCCESS_STATES as appropriate
+             in state.py (skipped is not a success but it is terminal).
+          2. In executor.py run_show(), when a scene's dependency is in a terminal
+             non-success state, mark the scene as "skipped" and record a skip_reason
+             in scene_state.warnings (e.g. "skipped: dependency 'scene_id' did not play").
+          3. Ensure the skip propagates: if scene B is skipped because A failed, and
+             scene C depends on B, C is also skipped (not blocked or failed).
+          4. Add skip_reason as a field to SceneState in models.py (optional string).
+          5. Add at least 4 tests to tests/test_skip_semantics.py:
+             - a scene with failed dependency is skipped not blocked
+             - skip reason is recorded in scene state
+             - skip propagates transitively through a chain of 3 scenes
+             - non-dependent scenes still run when one scene is skipped
+          6. Run the full test suite: python3 -m pytest --tb=short -q
+          7. Commit with message: "feat: dependency skip-propagation with reason tracking (scene 2 of v1.0 build)"
+
+          Return JSON only, no markdown fences:
+          {
+            "commit_sha": "<7-char git SHA or 'pending-manual-apply'>",
+            "tests_added": <integer>,
+            "tests_passing": <integer>,
+            "notes": "<any important observations>"
+          }
+        params:
+          model: claude-sonnet-4-6
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 5
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 7200
+      cut:
+        condition: escalate
+        reason: "Skip semantics are required for correct v1.0 behaviour"
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 3 — v0.4.2 patch completion
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: v0_4_2_patch_completion
+      title: "Implement remaining v0.4.2 patch items: must-complete and programme-delivery separation"
+      depends-on: [sqlalchemy_migration]
+      input-trust: trusted
+      outputs:
+        result:
+          type: object
+          schema: object
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          You are implementing two remaining v0.4.2 patch items in The Show at
+          /Users/markshortandsweet.org/the-show.
+
+          Item 1 — must-complete / paused terminal-state semantics:
+          - Add a "must-complete" field to Scene in models.py (boolean, default false).
+          - If a scene has must_complete=true and all strategies fail, the show status
+            becomes "paused" (not "aborted" or "blocked") and execution halts at that scene.
+          - On resume, the show re-tries from the paused scene.
+          - Add the field to loader.py YAML parsing.
+          - Add tests: must-complete scene failure pauses show, resume re-runs it.
+
+          Item 2 — programme-delivery state separation:
+          - Currently "completed" show status conflates "all scenes played" with
+            "delivery artefacts written". Add a "delivered" status that is set only
+            after generate_programme() succeeds.
+          - State flow: running → completed → delivered (or completed if delivery fails).
+          - Update executor.py run_show() to set status="delivered" after generate_programme.
+          - If generate_programme raises, status stays "completed" and a warning is logged.
+          - Add tests: successful run reaches "delivered", delivery failure stays "completed".
+
+          After implementing both items:
+          1. Run the full test suite: python3 -m pytest --tb=short -q
+          2. Commit with message: "feat: must-complete semantics and programme-delivery state separation (scene 3 of v1.0 build)"
+
+          Return JSON only, no markdown fences:
+          {
+            "commit_sha": "<7-char git SHA or 'pending-manual-apply'>",
+            "tests_added": <integer>,
+            "tests_passing": <integer>,
+            "notes": "<any important observations>"
+          }
+        params:
+          model: claude-sonnet-4-6
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 5
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 7200
+      cut:
+        condition: escalate
+        reason: "v0.4.2 patch items are required for v1.0 correctness"
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 4 — Adapter contract formalisation
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: adapter_contract_formalisation
+      title: "Formalise the adapter contract — ABC or Protocol with Telegram, email, Gemini"
+      depends-on: [sqlalchemy_migration]
+      input-trust: trusted
+      outputs:
+        result:
+          type: object
+          schema: object
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          You are formalising the adapter contract for The Show at
+          /Users/markshortandsweet.org/the-show.
+
+          Current state: ChannelAdapter in urgent_contact/channels/base.py is a Protocol.
+          Sub-agent calls go through call_sub_agent() in adapters.py without a formal contract.
+          There is no consistent contract for retry policy, timeout, or error surface.
+
+          Task:
+          1. Create urgent_contact/channels/adapter_base.py with an AbstractChannelAdapter
+             (ABC or enhanced Protocol) that declares:
+             - channel_type: str
+             - supported_auth_methods: List[str]
+             - timeout_seconds: int (default 30)
+             - retry_policy: dict (default: max_attempts=3, backoff=exponential)
+             - send(handle, message, auth_method, auth_token) -> None
+             - poll_responses(handle) -> List[InboundResponse]
+             - cancel_pending(handle) -> None
+             - supports_cancellation() -> bool
+             - error_surface() -> List[str]  (list of error type strings this adapter may raise)
+          2. Update TelegramChannel to explicitly implement AbstractChannelAdapter.
+          3. Update EmailChannel to explicitly implement AbstractChannelAdapter.
+          4. Create a GeminiSubAgentAdapter that wraps call_sub_agent() and implements
+             AbstractChannelAdapter conceptually (or a parallel SubAgentContract ABC
+             if that maps better). Gemini is the primary sub-agent model.
+          5. Add at least 4 tests to tests/test_adapter_contracts.py:
+             - TelegramChannel passes isinstance check against AbstractChannelAdapter
+             - EmailChannel passes isinstance check against AbstractChannelAdapter
+             - GeminiSubAgentAdapter has required attributes
+             - error_surface() returns a non-empty list for each adapter
+          6. Run the full test suite: python3 -m pytest --tb=short -q
+          7. Commit with message: "feat: formalise adapter contract with ABC — Telegram, email, Gemini (scene 4 of v1.0 build)"
+
+          Return JSON only, no markdown fences:
+          {
+            "commit_sha": "<7-char git SHA or 'pending-manual-apply'>",
+            "tests_added": <integer>,
+            "tests_passing": <integer>,
+            "notes": "<any important observations>"
+          }
+        params:
+          model: claude-sonnet-4-6
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 5
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 7200
+      cut:
+        condition: escalate
+        reason: "Adapter contract formalisation is required for v1.0"
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 5 — Human approval gate (after scenes 1-4)
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: human_approval_gate_migration_review
+      title: "Operator approval — scenes 1-4 complete, proceed to examples and documentation?"
+      depends-on: [sqlalchemy_migration, dependency_skip_semantics, v0_4_2_patch_completion, adapter_contract_formalisation]
+      input-trust: trusted
+      outputs:
+        decision:
+          type: string
+          schema: string
+      principal:
+        method: human-approval
+        agent: stage-manager
+        severity: urgent
+        brief: |
+          The Show v1.0 build programme — scenes 1-4 complete.
+
+          Scenes completed overnight:
+            1. sqlalchemy_migration — SQLAlchemy Core + Alembic introduced, 11-table schema
+            2. dependency_skip_semantics — explicit skip-propagation with reason tracking
+            3. v0_4_2_patch_completion — must-complete semantics, programme-delivery state separation
+            4. adapter_contract_formalisation — adapter ABC contract, Telegram + email + Gemini
+
+          Run: python3 -m pytest --tb=short -q in the-show to confirm tests green.
+          Run: git log --oneline -8 to review commits.
+
+          Reply APPROVE to proceed to the theatrical example and operator documentation.
+          Reply REJECT <reason> to abort the programme (nothing is tagged, work stays in branch).
+          Reply STOP to abort immediately.
+
+          Timeout: 8 hours from send.
+      success-when:
+        schema: string
+      timeout-seconds: 28800
+      cut:
+        condition: escalate
+        reason: "Cannot proceed to documentation without operator approval"
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 6 — Build theatrical example programme
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: build_theatrical_example_programme
+      title: "Write Dubai Gala night-of-show example programme and rehearse it"
+      depends-on: [human_approval_gate_migration_review]
+      input-trust: trusted
+      outputs:
+        result:
+          type: object
+          schema: object
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          You are writing a strong theatrical example programme for The Show at
+          /Users/markshortandsweet.org/the-show/examples/dubai-gala-night-of-show.yaml.
+
+          This example demonstrates The Show's theatrical metaphor properly — it is not
+          a generic automation example. It is a night-of-show workflow for a gala final
+          at the Dubai International Festival of Performing Arts.
+
+          Programme: dubai-gala-night-of-show
+          Title: "Dubai Gala night-of-show — DIFPA closing ceremony"
+          Rehearsal: false (but rehearsable with --rehearsal flag)
+
+          Scenes (design these properly — use creative judgement on exact wording):
+            1. load_running_order — read the night's running order from disk (tool-call read-csv)
+            2. generate_host_intros — for each play/act in the running order, generate a
+               30-second host introduction that the MC reads before the curtain rises.
+               Arabic and English, concise and warm. (sub-agent)
+            3. draft_sponsor_acknowledgements — draft the opening and closing sponsor
+               acknowledgement speeches. Tone: gracious, not sycophantic. (sub-agent)
+            4. draft_social_announcement — draft the post-show social media announcement in
+               English. Flag: "ready for AR translation in phase 1.5". (sub-agent)
+            5. approve_drafts — urgent contact to operator: approve all four draft deliverables.
+               Telegram. Timeout 2 hours.
+            6. deliver_final_artefacts — compile all approved drafts into a single delivery
+               document at examples/outputs/dubai-gala-night-of-show-final.md. (sub-agent)
+
+          Use gemini-flash as the model for all sub-agent scenes.
+          Use Telegram channel for urgent contact (handle: "8406661245", auth: channel-native).
+
+          After writing the YAML:
+          1. Validate it: python3 cli.py validate examples/dubai-gala-night-of-show.yaml
+          2. Rehearse it: python3 cli.py run examples/dubai-gala-night-of-show.yaml --rehearsal
+             (capture the output to examples/outputs/dubai-gala-rehearsal.log if possible)
+          3. Commit the YAML with message: "feat: Dubai Gala night-of-show example programme (scene 6 of v1.0 build)"
+
+          Return JSON only, no markdown fences:
+          {
+            "commit_sha": "<7-char git SHA or 'pending-manual-apply'>",
+            "rehearsal_exit_code": <integer — 0 for success>,
+            "rehearsal_log_path": "<path to rehearsal log or 'examples/outputs/dubai-gala-rehearsal.log'>",
+            "notes": "<any important observations>"
+          }
+        params:
+          model: claude-sonnet-4-6
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 5
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 7200
+      cut:
+        condition: continue
+        reason: "Example programme is a deliverable but not a hard blocker for v1.0 tag"
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 7 — Operator documentation (parallel with scene 6)
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: operator_documentation
+      title: "Draft OPERATOR_GUIDE.md — theatrical metaphor, Mark voice, creative operator audience"
+      depends-on: [human_approval_gate_migration_review]
+      input-trust: trusted
+      outputs:
+        result:
+          type: object
+          schema: object
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          You are writing the operator guide for The Show at
+          /Users/markshortandsweet.org/the-show/docs/OPERATOR_GUIDE.md.
+
+          Target reader: a creative operator — a theatre producer, festival director, or
+          arts administrator — who has never used a software runtime before. They understand
+          dramatic structure instinctively. Use that.
+
+          Theatrical metaphor (map each term to a technical concept):
+            Scene        → a discrete unit of work with a single output (like a theatrical scene)
+            Act          → a group of scenes in sequence (a phase of the programme)
+            Programme    → the full show — the YAML file that defines the running order
+            Director     → the person who designs the programme (the YAML author)
+            Stage Manager → the runtime (executor.py) — calls each cue, tracks state, handles emergencies
+            House Manager → the monitor (monitor/) — watches costs, timing, anomalies from the wings
+            Green Room   → rehearsal mode — where performers warm up without the audience watching
+            Rehearsal    → a dry-run of the full programme (--rehearsal flag)
+            Urgent Contact → the mechanism for the Stage Manager to interrupt the Director mid-show
+            Crash Seam   → the automatic save point so the show can resume if interrupted
+
+          Voice: Mark Cleary. Short declarative sentences. En dashes — not hyphens. No Oxford commas.
+          No hedging ("may", "might", "can sometimes"). Australian spelling (programme, colour, organise).
+          Warmth without softness. Stories as arguments — lead with the concrete, then the principle.
+          No bullet-point soup. Write in paragraphs.
+
+          Structure:
+            1. Opening — what The Show is and why it exists (1 paragraph, concrete story)
+            2. The Cast — explain each theatrical term with its technical meaning (one paragraph each)
+            3. Writing Your Programme — YAML structure explained through the theatrical metaphor
+            4. Running the Show — CLI commands through the Stage Manager metaphor
+            5. The Green Room — rehearsal mode, how and when to use it
+            6. Urgent Contact — how the Stage Manager reaches you mid-show
+            7. When Things Go Wrong — crash seams, resume, the blocker pattern
+            8. Closing — one paragraph, the vision
+
+          Target length: 1500–2500 words. Exact word count in the output.
+
+          After writing the document:
+          1. Create docs/ directory if it does not exist.
+          2. Write the document to docs/OPERATOR_GUIDE.md.
+          3. Commit with message: "docs: operator guide — theatrical metaphor for creative operators (scene 7 of v1.0 build)"
+
+          Return JSON only, no markdown fences:
+          {
+            "commit_sha": "<7-char git SHA or 'pending-manual-apply'>",
+            "word_count": <integer>,
+            "path": "docs/OPERATOR_GUIDE.md",
+            "notes": "<any observations>"
+          }
+        params:
+          model: claude-sonnet-4-6
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 5
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 7200
+      cut:
+        condition: continue
+        reason: "Documentation is a deliverable but not a hard blocker for v1.0 tag"
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 8 — Release preparation and final approval gate
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: v1_0_release_prep
+      title: "v1.0 release preparation — bump version, CHANGELOG, confirm tests green, operator approval"
+      depends-on: [build_theatrical_example_programme, operator_documentation]
+      input-trust: trusted
+      outputs:
+        decision:
+          type: string
+          schema: string
+      principal:
+        method: human-approval
+        agent: stage-manager
+        severity: urgent
+        brief: |
+          The Show v1.0 build programme — scenes 6 and 7 complete. Ready to tag.
+
+          Scenes completed:
+            6. build_theatrical_example_programme — Dubai Gala YAML + rehearsal
+            7. operator_documentation — docs/OPERATOR_GUIDE.md
+
+          To confirm readiness:
+            - Run: python3 -m pytest --tb=short -q (should be green)
+            - Run: git log --oneline -12 (review all v1.0 build commits)
+            - Check: docs/OPERATOR_GUIDE.md exists and reads well
+            - Check: examples/dubai-gala-night-of-show.yaml validates
+
+          Pre-tag checklist:
+            - Version bumped to 1.0.0 in pyproject.toml or VERSION file if present
+            - CHANGELOG.md updated with comprehensive v1.0 release notes
+            - All tests passing
+
+          Reply TAG to create the v1.0.0 git tag and push.
+          Reply HOLD <reason> to pause (nothing is tagged — describe what needs more work).
+          Reply STOP to abort immediately.
+
+          Timeout: 8 hours from send.
+      success-when:
+        schema: string
+      timeout-seconds: 28800
+      cut:
+        condition: escalate
+        reason: "Cannot tag without operator approval"
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Scene 9 — Tag and announce
+    # ────────────────────────────────────────────────────────────────────────
+    - scene: tag_and_announce
+      title: "Create v1.0.0 git tag, push, write launch announcement draft"
+      depends-on: [v1_0_release_prep]
+      input-trust: trusted
+      outputs:
+        result:
+          type: object
+          schema: object
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          You are finalising the v1.0 release of The Show at
+          /Users/markshortandsweet.org/the-show.
+
+          Tasks:
+          1. Confirm the version is bumped to 1.0.0 (check pyproject.toml, setup.py, or VERSION file).
+             If no version file exists, create a VERSION file with content: 1.0.0
+          2. Ensure CHANGELOG.md exists and has a v1.0.0 section with comprehensive release notes.
+             The notes should cover: rehearsal mode, all v0.4.x features, the theatrical metaphor,
+             the Dubai example programme, the operator guide. Mark voice — short declarative sentences.
+          3. Run the full test suite one final time: python3 -m pytest --tb=short -q
+             Record the number of passing tests.
+          4. Create the git tag: git tag -a v1.0.0 -m "The Show v1.0.0 — first theatrical release"
+          5. Push the tag: git push origin v1.0.0
+          6. Write the launch announcement draft to:
+             /Users/markshortandsweet.org/ss-ops/outputs/v1.0-launch-announcement-draft.md
+             Create the ss-ops/outputs/ directory if it does not exist.
+             The announcement is for a creative-tech audience (festival directors, arts producers,
+             technical staff at cultural institutions). Mark voice. En dashes. Australian spelling.
+             No Oxford commas. 400-600 words. Concrete story first. Do NOT post anything publicly.
+          7. Do not create social media posts or send anything anywhere.
+
+          Return JSON only, no markdown fences:
+          {
+            "tag_pushed": <true or false>,
+            "announcement_path": "/Users/markshortandsweet.org/ss-ops/outputs/v1.0-launch-announcement-draft.md",
+            "tests_passing": <integer>,
+            "notes": "<any observations>"
+          }
+        params:
+          model: claude-sonnet-4-6
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 5
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 3600
+      cut:
+        condition: continue
+        reason: "Tag and announce should not block on failure — report and continue"
