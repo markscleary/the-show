@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -116,6 +117,10 @@ def load_show(path: str | Path) -> ShowSettings:
         running_order=scenes,
         urgent_contact=show.get("urgent-contact", {}),
     )
+    # SHOW_REHEARSAL=1 env var overrides the YAML rehearsal flag
+    if os.environ.get("SHOW_REHEARSAL") == "1":
+        settings.rehearsal = True
+
     validate_show(settings)
     return settings
 

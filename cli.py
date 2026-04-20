@@ -38,12 +38,16 @@ def cmd_validate(path: str) -> int:
         return 1
 
 
-def cmd_run(path: str) -> int:
+def cmd_run(path: str, rehearsal: bool = False) -> int:
     try:
         show = load_show(path)
     except ValidationError as exc:
         print(f"INVALID: {exc}")
         return 1
+
+    if rehearsal:
+        show.rehearsal = True
+        print("[REHEARSAL MODE] No real LLM calls, no real channel sends, approvals synthetic.")
 
     resume_state = None
 
@@ -250,6 +254,8 @@ def main() -> int:
 
     p_run = sub.add_parser("run", help="Run a show (with crash-resume support)")
     p_run.add_argument("path")
+    p_run.add_argument("--rehearsal", action="store_true",
+                       help="Dry-run: no real LLM calls, no real channel sends, approvals synthetic")
 
     p_peek = sub.add_parser("peek", help="Inspect current state of a show")
     p_peek.add_argument("show_id")
@@ -290,7 +296,7 @@ def main() -> int:
     if args.command == "validate":
         return cmd_validate(args.path)
     if args.command == "run":
-        return cmd_run(args.path)
+        return cmd_run(args.path, rehearsal=getattr(args, "rehearsal", False))
     if args.command == "peek":
         return cmd_peek(args.show_id)
     if args.command == "programme":

@@ -122,6 +122,50 @@ def run_human_approval(
     label: str,
 ) -> Tuple[bool, AdapterResult]:
     """Invoke the Urgent Contact dispatcher for a human-approval strategy."""
+
+    # Rehearsal: resolve instantly with synthetic approval — no real channels
+    if show.rehearsal:
+        from rehearsal_adapter import synthetic_approval, log_urgent_send
+        resolution = synthetic_approval()
+        log_urgent_send(show.id, scene.scene, strategy.brief or scene.title, resolution)
+
+        if resolution in ("APPROVE", "CONTINUE"):
+            result = AdapterResult(success=True, output=resolution, duration_ms=0, cost_usd=0.0)
+            success = True
+        elif resolution == "STOP":
+            result = AdapterResult(
+                success=False, output=None, error_type="show-stop", duration_ms=0, cost_usd=0.0
+            )
+            success = False
+        elif resolution == "exhausted":
+            result = AdapterResult(
+                success=False, output=None, error_type="blocked-no-response", duration_ms=0, cost_usd=0.0
+            )
+            success = False
+        else:
+            result = AdapterResult(
+                success=False, output=None, error_type=resolution, duration_ms=0, cost_usd=0.0
+            )
+            success = False
+
+        record = AttemptRecord(
+            scene=scene.scene,
+            strategy_label=label,
+            status="success" if success else "failed",
+            error_type=result.error_type,
+            duration_ms=0,
+            cost_usd=0.0,
+        )
+        state.scenes[scene.scene].attempts.append(record)
+        add_event(
+            state.show_id,
+            "urgent_contact_resolved",
+            scene_id=scene.scene,
+            strategy_label=label,
+            payload={"resolution": resolution, "rehearsal": True},
+        )
+        return success, result
+
     from urgent_contact.dispatcher import UrgentContactDispatcher, load_adapters
 
     db_path = get_db_path(state.show_id)
@@ -223,7 +267,14 @@ def run_strategy(
 
     last_result: Optional[AdapterResult] = None
     for attempt_num in range(1, attempts + 1):
-        result = execute_strategy(strategy, resolved_inputs, rehearsal=show.rehearsal)
+        result = execute_strategy(
+            strategy,
+            resolved_inputs,
+            rehearsal=show.rehearsal,
+            show_id=state.show_id,
+            scene_id=scene.scene,
+            effective_success_when=effective_success_when,
+        )
         last_result = result
 
         # Sanitise untrusted string output before success evaluation
@@ -340,7 +391,7 @@ def _handle_monitor_signals(show_id: str, show: "ShowSettings", state: "ShowStat
         escalation_keys = _MONITOR_ESCALATION_MAP.get(trigger, [])
         should_escalate = any(escalate_when.get(k) for k in escalation_keys)
 
-        if should_escalate and ev["severity"] in ("urgent", "critical"):
+        if should_escalate and ev["severity"] in ("urgent", "critical") and not show.rehearsal:
             from urgent_contact.dispatcher import UrgentContactDispatcher, load_adapters
             db_path = get_db_path(state.show_id)
             adapters = list(load_adapters().values())

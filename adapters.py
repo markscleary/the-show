@@ -201,7 +201,14 @@ def call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> dict:
     ) from last_exc
 
 
-def execute_strategy(strategy, resolved_inputs: Dict[str, Any], rehearsal: bool = False) -> AdapterResult:
+def execute_strategy(
+    strategy,
+    resolved_inputs: Dict[str, Any],
+    rehearsal: bool = False,
+    show_id: str = "",
+    scene_id: str = "",
+    effective_success_when: Optional[Dict[str, Any]] = None,
+) -> AdapterResult:
     """Stub executor — replace with real integrations in Session 4."""
     start = time.time()
 
@@ -222,6 +229,9 @@ def execute_strategy(strategy, resolved_inputs: Dict[str, Any], rehearsal: bool 
     # --- tool-call: write-json ---
     if strategy.method == "tool-call" and strategy.action == "write-json":
         path = strategy.params.get("path", "/tmp/the-show-output.json")
+        if rehearsal:
+            from rehearsal_adapter import rehearsal_output_path
+            path = rehearsal_output_path(show_id, path)
         return AdapterResult(
             success=True,
             output=path,
@@ -250,6 +260,19 @@ def execute_strategy(strategy, resolved_inputs: Dict[str, Any], rehearsal: bool 
                 success=False,
                 error_type="unsupported",
                 message="sub-agent strategy has no brief or prompt",
+                duration_ms=int((time.time() - start) * 1000),
+                cost_usd=0.0,
+            )
+
+        # Rehearsal: return deterministic canned response without hitting the LLM proxy
+        if rehearsal:
+            from rehearsal_adapter import canned_sub_agent_response, log_sub_agent_call
+            log_sub_agent_call(show_id, scene_id, model, prompt[:200])
+            success_when = effective_success_when or strategy.success_when or {}
+            output = canned_sub_agent_response(scene_id, model, success_when)
+            return AdapterResult(
+                success=True,
+                output=output,
                 duration_ms=int((time.time() - start) * 1000),
                 cost_usd=0.0,
             )
