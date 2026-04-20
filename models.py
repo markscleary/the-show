@@ -53,6 +53,7 @@ class Scene:
     cut: CutRule = field(default_factory=CutRule)
     adaptive: AdaptiveConfig = field(default_factory=AdaptiveConfig)
     input_trust: str = "trusted"
+    must_complete: bool = False
 
 
 @dataclass
@@ -96,6 +97,7 @@ class SceneState:
     selected_strategy: Optional[str] = None
     output_bindings: Dict[str, Any] = field(default_factory=dict)
     warnings: List[str] = field(default_factory=list)
+    skip_reason: Optional[str] = None
 
 
 @dataclass

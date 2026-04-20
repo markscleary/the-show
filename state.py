@@ -23,6 +23,7 @@ SUCCESS_STATES: frozenset[str] = frozenset({
 TERMINAL_STATES: frozenset[str] = frozenset({
     *SUCCESS_STATES,
     "cut",
+    "skipped",
     "blocked",
     "failed",
     "cascading-dependency-failure",
@@ -210,6 +211,17 @@ def persist_show_state(state: ShowState) -> None:
                completed_at=COALESCE(?, completed_at)
            WHERE show_id=?""",
         (state.status, state.total_cost_usd, now, completed_at, state.show_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def persist_delivered_status(show_id: str) -> None:
+    """Mark a completed show as 'delivered' in the DB (programme generation succeeded)."""
+    conn = _connect(show_id)
+    conn.execute(
+        "UPDATE show_state SET status='delivered', updated_at=? WHERE show_id=? AND status='completed'",
+        (_now(), show_id),
     )
     conn.commit()
     conn.close()

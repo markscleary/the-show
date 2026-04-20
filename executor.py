@@ -15,6 +15,7 @@ from state import (
     add_event,
     get_db_path,
     initialize_state,
+    persist_delivered_status,
     persist_scene_output,
     persist_scene_state,
     persist_show_state,
@@ -510,8 +511,18 @@ def run_show(
                 state.scenes.get(dep) and state.scenes[dep].status == "blocked-no-response"
                 for dep in unresolved
             )
-            scene_state.status = "cascading-dependency-failure" if cascading else "cut"
-            scene_state.warnings.append(f"Unresolved dependencies: {', '.join(unresolved)}")
+            if cascading:
+                scene_state.status = "cascading-dependency-failure"
+                skip_msg = f"cascading: dependency '{unresolved[0]}' blocked-no-response"
+            else:
+                scene_state.status = "skipped"
+                dep_statuses = [
+                    f"'{dep}' ({state.scenes[dep].status if state.scenes.get(dep) else 'missing'})"
+                    for dep in unresolved
+                ]
+                skip_msg = f"skipped: unresolved dependencies — {', '.join(dep_statuses)}"
+            scene_state.skip_reason = skip_msg
+            scene_state.warnings.append(skip_msg)
             persist_scene_state(state.show_id, scene_state)
             add_event(
                 state.show_id,
@@ -630,6 +641,20 @@ def run_show(
                 )
             continue  # keep running non-dependent scenes
 
+        # must-complete: pause the show so it can be resumed and re-tried
+        if scene.must_complete:
+            scene_state.status = "running"  # left as running — will re-try on resume
+            persist_scene_state(state.show_id, scene_state)
+            state.status = "paused"
+            persist_show_state(state)
+            add_event(
+                state.show_id,
+                "show_paused_must_complete",
+                scene_id=scene.scene,
+                payload={"reason": "must-complete scene exhausted all strategies"},
+            )
+            break
+
         # Normal cut handling
         scene_state.status = handle_cut(scene)
 
@@ -665,5 +690,23 @@ def run_show(
 
     persist_show_state(state)
     add_event(state.show_id, "show_finished", payload={"status": state.status})
-    generate_programme(show.id)
+
+    # Attempt programme delivery.
+    # On success: DB status → "delivered". In-memory state stays "completed" so callers
+    # get a stable return value (existing API contract). Read DB to check delivery.
+    if state.status == "completed":
+        try:
+            generate_programme(show.id)
+            persist_delivered_status(state.show_id)
+        except Exception as exc:
+            import logging
+            logging.warning(
+                "[executor] generate_programme failed — status stays 'completed': %s", exc
+            )
+    else:
+        try:
+            generate_programme(show.id)
+        except Exception:
+            pass
+
     return state
