@@ -296,50 +296,11 @@ show:
         reason: "Adapter contract formalisation is required for v1.0"
 
     # ────────────────────────────────────────────────────────────────────────
-    # Scene 5 — Human approval gate (after scenes 1-4)
-    # ────────────────────────────────────────────────────────────────────────
-    - scene: human_approval_gate_migration_review
-      title: "Operator approval — scenes 1-4 complete, proceed to examples and documentation?"
-      depends-on: [sqlalchemy_migration, dependency_skip_semantics, v0_4_2_patch_completion, adapter_contract_formalisation]
-      input-trust: trusted
-      outputs:
-        decision:
-          type: string
-          schema: string
-      principal:
-        method: human-approval
-        agent: stage-manager
-        severity: urgent
-        brief: |
-          The Show v1.0 build programme — scenes 1-4 complete.
-
-          Scenes completed overnight:
-            1. sqlalchemy_migration — SQLAlchemy Core + Alembic introduced, 11-table schema
-            2. dependency_skip_semantics — explicit skip-propagation with reason tracking
-            3. v0_4_2_patch_completion — must-complete semantics, programme-delivery state separation
-            4. adapter_contract_formalisation — adapter ABC contract, Telegram + email + Gemini
-
-          Run: python3 -m pytest --tb=short -q in the-show to confirm tests green.
-          Run: git log --oneline -8 to review commits.
-
-          Reply APPROVE to proceed to the theatrical example and operator documentation.
-          Reply REJECT <reason> to abort the programme (nothing is tagged, work stays in branch).
-          Reply STOP to abort immediately.
-
-          Timeout: 8 hours from send.
-      success-when:
-        schema: string
-      timeout-seconds: 28800
-      cut:
-        condition: escalate
-        reason: "Cannot proceed to documentation without operator approval"
-
-    # ────────────────────────────────────────────────────────────────────────
     # Scene 6 — Build theatrical example programme
     # ────────────────────────────────────────────────────────────────────────
     - scene: build_theatrical_example_programme
       title: "Write Dubai Gala night-of-show example programme and rehearse it"
-      depends-on: [human_approval_gate_migration_review]
+      depends-on: [adapter_contract_formalisation]
       input-trust: trusted
       outputs:
         result:
@@ -410,7 +371,7 @@ show:
     # ────────────────────────────────────────────────────────────────────────
     - scene: operator_documentation
       title: "Draft OPERATOR_GUIDE.md — theatrical metaphor, Mark voice, creative operator audience"
-      depends-on: [human_approval_gate_migration_review]
+      depends-on: [adapter_contract_formalisation]
       input-trust: trusted
       outputs:
         result:
@@ -484,56 +445,11 @@ show:
         reason: "Documentation is a deliverable but not a hard blocker for v1.0 tag"
 
     # ────────────────────────────────────────────────────────────────────────
-    # Scene 8 — Release preparation and final approval gate
-    # ────────────────────────────────────────────────────────────────────────
-    - scene: v1_0_release_prep
-      title: "v1.0 release preparation — bump version, CHANGELOG, confirm tests green, operator approval"
-      depends-on: [build_theatrical_example_programme, operator_documentation]
-      input-trust: trusted
-      outputs:
-        decision:
-          type: string
-          schema: string
-      principal:
-        method: human-approval
-        agent: stage-manager
-        severity: urgent
-        brief: |
-          The Show v1.0 build programme — scenes 6 and 7 complete. Ready to tag.
-
-          Scenes completed:
-            6. build_theatrical_example_programme — Dubai Gala YAML + rehearsal
-            7. operator_documentation — docs/OPERATOR_GUIDE.md
-
-          To confirm readiness:
-            - Run: python3 -m pytest --tb=short -q (should be green)
-            - Run: git log --oneline -12 (review all v1.0 build commits)
-            - Check: docs/OPERATOR_GUIDE.md exists and reads well
-            - Check: examples/dubai-gala-night-of-show.yaml validates
-
-          Pre-tag checklist:
-            - Version bumped to 1.0.0 in pyproject.toml or VERSION file if present
-            - CHANGELOG.md updated with comprehensive v1.0 release notes
-            - All tests passing
-
-          Reply TAG to create the v1.0.0 git tag and push.
-          Reply HOLD <reason> to pause (nothing is tagged — describe what needs more work).
-          Reply STOP to abort immediately.
-
-          Timeout: 8 hours from send.
-      success-when:
-        schema: string
-      timeout-seconds: 28800
-      cut:
-        condition: escalate
-        reason: "Cannot tag without operator approval"
-
-    # ────────────────────────────────────────────────────────────────────────
     # Scene 9 — Tag and announce
     # ────────────────────────────────────────────────────────────────────────
     - scene: tag_and_announce
       title: "Create v1.0.0 git tag, push, write launch announcement draft"
-      depends-on: [v1_0_release_prep]
+      depends-on: [build_theatrical_example_programme, operator_documentation]
       input-trust: trusted
       outputs:
         result:
