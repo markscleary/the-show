@@ -1,0 +1,386 @@
+show:
+  id: dubai-gala-night-of-show
+  title: "Dubai Gala night-of-show — DIFPA closing ceremony, 23 May 2026"
+  rehearsal: false
+  max-duration-seconds: 10800
+  max-scenes: 10
+
+  sliders:
+    risk: housecat
+    improvisation: script
+
+  stage-manager:
+    mode: deterministic
+
+  bible:
+    objective: "Prepare all night-of-show content for the Short+Sweet International Dubai closing gala — host intros, sponsor acknowledgements, social announcement, operator approval, and final artefact delivery"
+    escalation:
+      blocked-scenes-consecutive: 2
+      budget-consumed-percentage: 80
+    reporting:
+      programme-format: [markdown, json]
+      deliver-to: [disk]
+
+  # ── Urgent Contact — Telegram (operator on-site at the gala) ─────────────────
+  urgent-contact:
+    mode: sequential
+    max-per-show: 3
+    send-interval-seconds: 15
+    contacts:
+      - role: operator
+        channel: telegram
+        handle: "8406661245"
+        auth: channel-native
+
+  running-order:
+
+    # Scene 1 — load running order (data setup, load-bearing)
+    - scene: load_running_order
+      title: "Load running order — five DIFPA winning plays"
+      input-trust: trusted
+      outputs:
+        running_order:
+          type: object
+          schema: running_order
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          Return the Short+Sweet International Dubai DIFPA closing gala running order
+          as a structured JSON object. No preamble, no markdown fences — JSON only.
+
+          The five plays in order:
+          1. "Sandstorm Protocol" by Layla Al-Rashid (UAE) — winner, Best Play
+          2. "The Last Call" by Marcus Chen (Australia) — winner, Best Director
+          3. "Three Seconds" by Priya Nair (India) — winner, Best Actress
+          4. "Intermission" by Jorge Muñoz (Spain) — winner, Best Comedy
+          5. "Salt Water" by Amira Hassan (Egypt) — winner, Best New Voice
+
+          Return exactly this structure:
+          {
+            "show": "New Covent Garden Theatre, Dubai — Short+Sweet International closing gala",
+            "date": "23 May 2026",
+            "competition": "DIFPA",
+            "plays": [
+              {
+                "order": 1,
+                "title": "Sandstorm Protocol",
+                "playwright": "Layla Al-Rashid",
+                "country": "UAE",
+                "award": "Best Play"
+              },
+              {
+                "order": 2,
+                "title": "The Last Call",
+                "playwright": "Marcus Chen",
+                "country": "Australia",
+                "award": "Best Director"
+              },
+              {
+                "order": 3,
+                "title": "Three Seconds",
+                "playwright": "Priya Nair",
+                "country": "India",
+                "award": "Best Actress"
+              },
+              {
+                "order": 4,
+                "title": "Intermission",
+                "playwright": "Jorge Muñoz",
+                "country": "Spain",
+                "award": "Best Comedy"
+              },
+              {
+                "order": 5,
+                "title": "Salt Water",
+                "playwright": "Amira Hassan",
+                "country": "Egypt",
+                "award": "Best New Voice"
+              }
+            ]
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 300
+      cut:
+        condition: escalate
+        reason: "Running order is load-bearing — cannot proceed without it"
+
+    # Scene 2 — generate MC host introductions (depends on scene 1)
+    - scene: generate_host_intros
+      title: "Generate MC host introductions — all five plays"
+      depends-on: [load_running_order]
+      inputs:
+        running_order: from(load_running_order.running_order)
+      input-trust: untrusted
+      outputs:
+        host_intros:
+          type: object
+          schema: host_intros
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          You are writing MC host introductions for the Short+Sweet International Dubai closing gala
+          at New Covent Garden Theatre, Dubai, on 23 May 2026.
+
+          See INPUTS for the running order (five DIFPA award-winning 10-minute plays).
+
+          For each play, write a 30-second host introduction the MC reads aloud before the curtain rises.
+          Requirements:
+          - Warm, celebratory, concise — no more than 80 words per intro
+          - Bilingual delivery cue: write the text in English, then add the note
+            "deliver in AR then EN" so the MC knows to read it first in Arabic, then English
+          - Name the playwright, their country, and their award
+          - Do not give away plot details — intrigue, don't spoil
+          - Tone: a gala occasion, not a school assembly
+
+          Return JSON only, no markdown fences:
+          {
+            "host_intros": [
+              {
+                "order": 1,
+                "play_title": "<title>",
+                "playwright": "<name>",
+                "award": "<award>",
+                "intro_text": "<the MC introduction in English>",
+                "delivery_note": "deliver in AR then EN"
+              }
+            ]
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 300
+      cut:
+        condition: continue
+        reason: "Host intros failed — show can proceed with placeholder intros"
+
+    # Scene 3 — draft sponsor acknowledgements (depends on scene 1)
+    - scene: draft_sponsor_acknowledgements
+      title: "Draft opening and closing sponsor acknowledgements"
+      depends-on: [load_running_order]
+      inputs:
+        running_order: from(load_running_order.running_order)
+      input-trust: untrusted
+      outputs:
+        sponsor_acks:
+          type: object
+          schema: sponsor_acks
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          Draft opening and closing sponsor acknowledgement speeches for the Short+Sweet International
+          Dubai closing gala at New Covent Garden Theatre, Dubai, 23 May 2026.
+
+          Sponsors to acknowledge:
+          - Dubai Culture Authority
+          - Etihad Aviation Group
+          - Majid Al Futtaim
+
+          Requirements:
+          - Gracious, genuine — not sycophantic or hollow
+          - English only
+          - Under 150 words each
+          - Opening speech: delivered before the first play, sets the tone for the evening
+          - Closing speech: delivered after the final play and awards, as the house lights come up
+          - Do not use superlatives like "incredible", "amazing", "phenomenal"
+          - Short+Sweet International is a global festival of 10-minute plays — mention this briefly
+
+          Return JSON only, no markdown fences:
+          {
+            "opening_speech": {
+              "label": "Opening sponsor acknowledgement",
+              "word_count": <integer>,
+              "text": "<the speech>"
+            },
+            "closing_speech": {
+              "label": "Closing sponsor acknowledgement",
+              "word_count": <integer>,
+              "text": "<the speech>"
+            }
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 300
+      cut:
+        condition: continue
+        reason: "Sponsor acknowledgements failed — show can proceed, speeches drafted manually"
+
+    # Scene 4 — draft post-show social announcement (depends on scenes 2 and 3)
+    - scene: draft_social_announcement
+      title: "Draft post-show social media announcement"
+      depends-on: [generate_host_intros, draft_sponsor_acknowledgements]
+      inputs:
+        host_intros: from(generate_host_intros.host_intros)
+        sponsor_acks: from(draft_sponsor_acknowledgements.sponsor_acks)
+      input-trust: untrusted
+      outputs:
+        social_post:
+          type: object
+          schema: social_post
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          Draft a post-show social media announcement for the Short+Sweet International Dubai
+          closing gala. This is published immediately after the show ends.
+
+          Context from INPUTS: the host intros and sponsor acknowledgements for the evening.
+
+          Requirements:
+          - English only — flag at the end: "[ready for AR translation in phase 1.5]"
+          - Maximum 280 characters (including the flag)
+          - Mark voice: short, declarative sentences. No hedging. No "we're thrilled to". No em dashes.
+          - Australian spelling (honour, recognise, etc.)
+          - Name the venue: New Covent Garden Theatre, Dubai
+          - Reference Short+Sweet International and the DIFPA competition
+          - Celebratory but not gushing
+
+          Return JSON only, no markdown fences:
+          {
+            "post_text": "<the announcement including the AR flag>",
+            "char_count": <integer>,
+            "note": "ready for AR translation in phase 1.5"
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 300
+      cut:
+        condition: continue
+        reason: "Social announcement failed — can be drafted manually post-show"
+
+    # Scene 5 — operator approval gate (depends on scene 4)
+    - scene: approve_drafts
+      title: "Operator approval — all deliverables before house opens"
+      depends-on: [draft_social_announcement]
+      input-trust: trusted
+      outputs:
+        decision:
+          type: string
+          schema: string
+      principal:
+        method: human-approval
+        agent: stage-manager
+        severity: urgent
+        brief: |
+          Dubai Gala night-of-show deliverables are ready for approval.
+
+          Programme: dubai-gala-night-of-show
+          Show: New Covent Garden Theatre, Dubai — Short+Sweet International closing gala
+          Date: 23 May 2026
+
+          The following have been generated and are ready for your review:
+          1. MC host introductions — all five DIFPA award-winning plays
+          2. Opening sponsor acknowledgement speech (Dubai Culture Authority, Etihad, MAF)
+          3. Closing sponsor acknowledgement speech
+          4. Post-show social media announcement (EN, flagged for AR translation)
+
+          Inspect deliverables: cli.py peek dubai-gala-night-of-show
+
+          Reply APPROVE to proceed with final artefact compilation.
+          Reply REJECT to abort (all drafts remain in state for manual revision).
+          Reply STOP to abort immediately.
+
+          The house opens in 2 hours — please respond before then.
+      success-when:
+        schema: string
+      timeout-seconds: 7200
+      cut:
+        condition: escalate
+        reason: "Cannot deliver final artefacts without operator approval"
+
+    # Scene 6 — compile and deliver final artefacts (depends on scene 5)
+    - scene: deliver_final_artefacts
+      title: "Compile approved content into final delivery document"
+      depends-on: [approve_drafts]
+      inputs:
+        running_order: from(load_running_order.running_order)
+        host_intros: from(generate_host_intros.host_intros)
+        sponsor_acks: from(draft_sponsor_acknowledgements.sponsor_acks)
+        social_post: from(draft_social_announcement.social_post)
+        decision: from(approve_drafts.decision)
+      input-trust: trusted
+      outputs:
+        delivery:
+          type: object
+          schema: delivery_record
+      principal:
+        method: sub-agent
+        agent: principal
+        brief: |
+          Compile all approved night-of-show content into a single final delivery document.
+
+          See INPUTS for: running order, host introductions, sponsor acknowledgements,
+          social media announcement, and operator decision.
+
+          Format as a clean, well-structured Markdown document suitable for the production team.
+          Include:
+          - Header: Dubai Gala Night-of-Show — DIFPA Closing Ceremony, 23 May 2026
+          - Venue: New Covent Garden Theatre, Dubai
+          - Operator approval status (from the decision input)
+          - Running order table (play, playwright, country, award)
+          - All five MC host introductions with delivery notes
+          - Opening sponsor acknowledgement speech
+          - Closing sponsor acknowledgement speech
+          - Post-show social media announcement with character count
+
+          Return JSON only, no markdown fences:
+          {
+            "output_path": "examples/outputs/dubai-gala-night-of-show-final.md",
+            "content_summary": "<one sentence describing what the document contains>",
+            "deliverables": [
+              "running_order",
+              "host_intros",
+              "sponsor_acknowledgements_opening",
+              "sponsor_acknowledgements_closing",
+              "social_announcement"
+            ],
+            "content": "<full markdown document>"
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        jitter: true
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 300
+      cut:
+        condition: continue
+        reason: "Final artefact compilation failed — all approved drafts remain in show state"
