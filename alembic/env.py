@@ -11,7 +11,7 @@ from sqlalchemy import engine_from_config, pool
 
 # The Show schema metadata
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from schema import metadata as target_metadata  # noqa: E402
+from the_show.schema import metadata as target_metadata  # noqa: E402
 
 config = context.config
 

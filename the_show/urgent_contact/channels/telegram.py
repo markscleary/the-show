@@ -5,8 +5,8 @@ from typing import List, Optional, Set
 
 import requests
 
-from urgent_contact.channels.base import InboundResponse
-from urgent_contact.channels.adapter_base import AbstractChannelAdapter
+from the_show.urgent_contact.channels.base import InboundResponse
+from the_show.urgent_contact.channels.adapter_base import AbstractChannelAdapter
 
 
 class TelegramChannel(AbstractChannelAdapter):

@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-import state
-from executor import run_show
-from loader import load_show
+from the_show import state
+from the_show.executor import run_show
+from the_show.loader import load_show
 
 
 YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"

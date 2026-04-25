@@ -13,8 +13,8 @@ import pytest
 @pytest.fixture(autouse=True)
 def tmp_state_dirs(tmp_path, monkeypatch):
     """Redirect state and programme output dirs to a temp directory for all tests."""
-    import state
-    import programme
+    from the_show import state
+    from the_show import programme
 
     fake_base = tmp_path / "the-show" / "state"
     fake_base.mkdir(parents=True)
@@ -31,7 +31,7 @@ def tmp_state_dirs(tmp_path, monkeypatch):
 @pytest.fixture
 def mock_dirs(tmp_path, monkeypatch):
     """Redirect MockChannel paths to a temp directory."""
-    import urgent_contact.channels.mock as mock_mod
+    import the_show.urgent_contact.channels.mock as mock_mod
 
     mock_dir = tmp_path / "urgent-mock"
     mock_dir.mkdir()
@@ -44,7 +44,7 @@ def mock_dirs(tmp_path, monkeypatch):
 @pytest.fixture
 def queue_db(tmp_path, monkeypatch):
     """Redirect link_queue.LINK_QUEUE_DB to a temp file for all channel tests."""
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     db = tmp_path / "link_queue.db"
     monkeypatch.setattr(lq, "LINK_QUEUE_DB", db)
     return db
@@ -60,7 +60,7 @@ def mock_sub_agent(monkeypatch):
     For other callers, returns a generic list long enough to pass any min-length
     check up to 100.
     """
-    import adapters
+    from the_show import adapters
 
     def _fake_call_sub_agent(model: str, prompt: str, max_tokens: int = 2000) -> list:  # type: ignore[return]
         rows = [
@@ -97,7 +97,7 @@ def fast_approval(mock_dirs, mock_sub_agent, monkeypatch):
 
     Also activates mock_sub_agent so sub-agent scenes don't hit the real LLM proxy.
     """
-    import urgent_contact.dispatcher as dispatcher_mod
+    import the_show.urgent_contact.dispatcher as dispatcher_mod
 
     token = "000000"
     # Patch where it's called from (dispatcher imported it at module level)

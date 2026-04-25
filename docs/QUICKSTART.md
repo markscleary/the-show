@@ -7,8 +7,7 @@ In 5 minutes you'll install The Show, run a small programme that writes a file a
 ## Prerequisites
 
 - Python 3.11 or later
-- [uv](https://github.com/astral-sh/uv) — the fastest way to manage the virtualenv (`pip install uv` or `brew install uv`)
-- Git
+- Git (only if installing from source)
 
 No LLM keys. No Telegram. No email account. The quickstart programme uses a built-in stub adapter — nothing leaves your machine.
 
@@ -16,22 +15,32 @@ No LLM keys. No Telegram. No email account. The quickstart programme uses a buil
 
 ## Install
 
-There's no PyPI package yet. Clone the repo and install dependencies into a local virtualenv:
+From PyPI – the standard path:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install the-show
+```
+
+From source – useful for contributors or pre-release work:
 
 ```bash
 git clone https://github.com/markscleary/the-show.git
 cd the-show
-uv venv --python 3.11 .venv
-uv pip install -r requirements.txt
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
 ```
 
 Verify it's working:
 
 ```bash
-uv run python cli.py --help
+the-show --version
+the-show --help
 ```
 
-You should see the list of commands: `validate`, `run`, `peek`, `programme`, `events`.
+You should see `the-show 1.1.0` then the list of commands: `validate`, `run`, `peek`, `programme`, `events`.
 
 ---
 
@@ -79,8 +88,8 @@ One scene. No dependencies. No LLM call. No approval gate. It writes a path stri
 ## Run it
 
 ```bash
-uv run python cli.py validate examples/hello.yaml
-uv run python cli.py run examples/hello.yaml
+the-show validate examples/hello.yaml
+the-show run examples/hello.yaml
 ```
 
 Expected output:
@@ -103,7 +112,7 @@ The show status will show as `delivered` — meaning the programme ran and the s
 ## See what happened
 
 ```bash
-uv run python cli.py peek hello-001
+the-show peek hello-001
 ```
 
 Output:

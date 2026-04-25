@@ -6,12 +6,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import state as _state_mod
-from state import (
+from the_show import state as _state_mod
+from the_show.state import (
     add_monitor_event,
     get_events,
 )
-from monitor.patterns import (
+from the_show.monitor.patterns import (
     DEFAULT_POLICY_DENIAL_MAX,
     DEFAULT_RETRY_STORM_MAX,
     DEFAULT_RETRY_STORM_WINDOW,
@@ -166,7 +166,7 @@ def _check_oscillation(
     qwen_model: str,
 ) -> None:
     """Check for oscillation on scenes with >_OSCILLATION_MIN_RETRIES attempts."""
-    from monitor.patterns import OLLAMA_BASE_URL
+    from the_show.monitor.patterns import OLLAMA_BASE_URL
 
     # Count attempts per scene and collect their outputs
     scene_attempts: Dict[str, List[Dict]] = {}

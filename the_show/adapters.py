@@ -137,7 +137,7 @@ def _do_llm_call(proxy_url: str, master_key: str, model: str, prompt: str, max_t
         pass
 
     try:
-        from sanitise import strip_markdown_fences
+        from the_show.sanitise import strip_markdown_fences
     except ImportError:
         from sanitize import strip_markdown_fences  # type: ignore[no-redef]
     cleaned = strip_markdown_fences(content)
@@ -230,7 +230,7 @@ def execute_strategy(
     if strategy.method == "tool-call" and strategy.action == "write-json":
         path = strategy.params.get("path", "/tmp/the-show-output.json")
         if rehearsal:
-            from rehearsal_adapter import rehearsal_output_path
+            from the_show.rehearsal_adapter import rehearsal_output_path
             path = rehearsal_output_path(show_id, path)
         return AdapterResult(
             success=True,
@@ -266,7 +266,7 @@ def execute_strategy(
 
         # Rehearsal: return deterministic canned response without hitting the LLM proxy
         if rehearsal:
-            from rehearsal_adapter import canned_sub_agent_response, log_sub_agent_call
+            from the_show.rehearsal_adapter import canned_sub_agent_response, log_sub_agent_call
             log_sub_agent_call(show_id, scene_id, model, prompt[:200])
             success_when = effective_success_when or strategy.success_when or {}
             output = canned_sub_agent_response(scene_id, model, success_when)

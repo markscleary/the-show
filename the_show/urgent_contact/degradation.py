@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import deque
 from typing import List
 
-from models import ShowSettings, ShowState
-from state import TERMINAL_STATES, persist_scene_state
+from the_show.models import ShowSettings, ShowState
+from the_show.state import TERMINAL_STATES, persist_scene_state
 
 
 def prune_dag_on_blocked(

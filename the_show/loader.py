@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import yaml
 
-from models import (
+from the_show.models import (
     AdaptiveConfig,
     Bible,
     CutRule,

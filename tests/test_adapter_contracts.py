@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-from urgent_contact.channels.adapter_base import AbstractChannelAdapter, AbstractSubAgentAdapter
-from urgent_contact.channels.telegram import TelegramChannel
-from urgent_contact.channels.email import EmailChannel
-from urgent_contact.channels.gemini_adapter import GeminiSubAgentAdapter
+from the_show.urgent_contact.channels.adapter_base import AbstractChannelAdapter, AbstractSubAgentAdapter
+from the_show.urgent_contact.channels.telegram import TelegramChannel
+from the_show.urgent_contact.channels.email import EmailChannel
+from the_show.urgent_contact.channels.gemini_adapter import GeminiSubAgentAdapter
 
 
 def test_telegram_channel_is_abstract_channel_adapter():

@@ -6,11 +6,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from executor import run_show
-from loader import load_show, ValidationError
-from monitor.cli import cmd_monitor_start, cmd_monitor_stop, cmd_monitor_events, launch_monitor_subprocess
-from programme import generate_programme
-from state import (
+from the_show import __version__
+from the_show.executor import run_show
+from the_show.loader import load_show, ValidationError
+from the_show.monitor.cli import cmd_monitor_start, cmd_monitor_stop, cmd_monitor_events, launch_monitor_subprocess
+from the_show.programme import generate_programme
+from the_show.state import (
     archive_db,
     count_completed_scenes,
     get_db_path,
@@ -76,7 +77,7 @@ def cmd_run(path: str, rehearsal: bool = False) -> int:
     try:
         state = run_show(show, resume_state=resume_state)
     finally:
-        from monitor.watcher import request_stop
+        from the_show.monitor.watcher import request_stop
         request_stop(show.id)
         try:
             monitor_proc.wait(timeout=5)
@@ -158,7 +159,7 @@ def cmd_events(show_id: str, since: str | None = None, limit: int | None = None)
 
 def cmd_respond(handle: str, text: str) -> int:
     """Write a response to the mock urgent channel responses file."""
-    from urgent_contact.channels.mock import MOCK_DIR, RESPONSES_FILE
+    from the_show.urgent_contact.channels.mock import MOCK_DIR, RESPONSES_FILE
     MOCK_DIR.mkdir(parents=True, exist_ok=True)
     entry = {
         "handle": handle,
@@ -173,8 +174,8 @@ def cmd_respond(handle: str, text: str) -> int:
 
 def cmd_click_link(token: str, action: str = "APPROVE") -> int:
     """Simulate a signed-link click by looking up the send and writing a response."""
-    from urgent_contact.channels.mock import MOCK_DIR, RESPONSES_FILE
-    from urgent_contact.auth import verify_signed_token
+    from the_show.urgent_contact.channels.mock import MOCK_DIR, RESPONSES_FILE
+    from the_show.urgent_contact.auth import verify_signed_token
 
     # Find the send record by token to get the handle and show_id
     # We need to search all show DBs — look through state files
@@ -247,6 +248,7 @@ def cmd_urgent(show_id: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="The Show — unattended agent orchestration")
+    parser.add_argument("--version", action="version", version=f"the-show {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_validate = sub.add_parser("validate", help="Validate a show YAML file")

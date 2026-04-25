@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from urgent_contact.channels.base import ChannelAdapter
-from urgent_contact.channels.sms import SMSChannel
+from the_show.urgent_contact.channels.base import ChannelAdapter
+from the_show.urgent_contact.channels.sms import SMSChannel
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def test_supported_auth_methods(adapter):
 
 def test_send_calls_twilio(adapter):
     mock_client = MagicMock()
-    with patch("urgent_contact.channels.sms.TwilioClient", mock_client):
+    with patch("the_show.urgent_contact.channels.sms.TwilioClient", mock_client):
         adapter.send("+61412345678", "URGENT: reply APPROVE 123456", "reply-token", "123456")
     mock_client.assert_called_once_with("ACtest", "authtest")
     mock_client.return_value.messages.create.assert_called_once_with(
@@ -51,7 +51,7 @@ def test_send_calls_twilio(adapter):
 
 
 def test_send_raises_if_twilio_unavailable(adapter):
-    with patch("urgent_contact.channels.sms._TWILIO_AVAILABLE", False):
+    with patch("the_show.urgent_contact.channels.sms._TWILIO_AVAILABLE", False):
         with pytest.raises(ImportError, match="twilio package"):
             adapter.send("+61412345678", "msg", "reply-token", "000000")
 
@@ -66,7 +66,7 @@ def test_poll_empty_when_no_responses(adapter, queue_db):
 
 
 def test_poll_returns_sms_reply(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     lq.write_sms_response("+61412345678", "APPROVE 123456")
 
     results = adapter.poll_responses("+61412345678")
@@ -78,7 +78,7 @@ def test_poll_returns_sms_reply(adapter, queue_db):
 
 
 def test_poll_consumes_response(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     lq.write_sms_response("+61412345678", "REJECT 654321")
 
     first = adapter.poll_responses("+61412345678")
@@ -88,7 +88,7 @@ def test_poll_consumes_response(adapter, queue_db):
 
 
 def test_poll_filters_by_phone_number(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     lq.write_sms_response("+61400000001", "APPROVE 111111")
     lq.write_sms_response("+61400000002", "REJECT 222222")
 

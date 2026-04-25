@@ -10,7 +10,7 @@ LINK_QUEUE_DB = Path.home() / ".the-show" / "link_queue.db"
 
 
 def _connect() -> sqlite3.Connection:
-    import urgent_contact.link_queue as _m
+    import the_show.urgent_contact.link_queue as _m
     db_path = _m.LINK_QUEUE_DB
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path))

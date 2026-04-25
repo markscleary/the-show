@@ -22,7 +22,7 @@ def _make_token(matter_id: int, action: str, expiry_ts: int, secret: str = SECRE
 def client(monkeypatch, queue_db):
     monkeypatch.setenv("URGENT_EMAIL_SIGNING_SECRET", SECRET)
     monkeypatch.setenv("URGENT_WHATSAPP_VERIFY_TOKEN", "my-verify-token")
-    import urgent_contact.link_server as ls
+    import the_show.urgent_contact.link_server as ls
     ls.app.config["TESTING"] = True
     with ls.app.test_client() as c:
         yield c
@@ -42,7 +42,7 @@ def test_valid_token_returns_200(client, queue_db):
 
 def test_valid_token_writes_to_queue(client, queue_db):
     import urllib.parse
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     expiry = int(time.time()) + 3600
     token = _make_token(7, "REJECT", expiry)
     handle = "user@example.com"
@@ -127,7 +127,7 @@ def test_whatsapp_verify_wrong_token(client):
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_whatsapp_webhook_queues_message(client, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     payload = {
         "entry": [
             {
@@ -161,7 +161,7 @@ def test_whatsapp_webhook_bad_payload_returns_200(client):
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_twilio_webhook_queues_sms(client, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     resp = client.post(
         "/twilio-webhook",
         data={"From": "+61412345678", "To": "+15005550006", "Body": "APPROVE 000000"},

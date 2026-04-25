@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
-from urgent_contact.channels.base import InboundResponse
+from the_show.urgent_contact.channels.base import InboundResponse
 
 class AbstractChannelAdapter(ABC):
     channel_type: str

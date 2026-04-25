@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-import state
-from executor import meets_success, run_show
-from loader import load_show
+from the_show import state
+from the_show.executor import meets_success, run_show
+from the_show.loader import load_show
 
 
 YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
@@ -86,7 +86,7 @@ def test_cascading_dependency_failure(tmp_state_dirs):
     s.scenes["load_targets"].status = "blocked-no-response"
     state.persist_state(s)
 
-    from executor import run_show as _run_show
+    from the_show.executor import run_show as _run_show
     result = _run_show(show, resume_state=s)
 
     # approve_run depends on load_targets — should cascade

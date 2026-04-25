@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from urgent_contact.channels.base import ChannelAdapter
-from urgent_contact.channels.email import EmailChannel
+from the_show.urgent_contact.channels.base import ChannelAdapter
+from the_show.urgent_contact.channels.email import EmailChannel
 
 
 SECRET = "test-signing-secret"
@@ -60,7 +60,7 @@ def test_send_calls_smtp(adapter):
     mock_smtp_class = MagicMock(return_value=mock_smtp_instance)
     mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
     mock_smtp_instance.__exit__ = MagicMock(return_value=False)
-    with patch("urgent_contact.channels.email.smtplib.SMTP", mock_smtp_class):
+    with patch("the_show.urgent_contact.channels.email.smtplib.SMTP", mock_smtp_class):
         adapter.send("user@example.com", "Urgent: please review", "channel-native", "5-abc-defsig")
     mock_smtp_class.assert_called_once_with("smtp.example.com", 587)
     mock_smtp_instance.send_message.assert_called_once()
@@ -76,7 +76,7 @@ def test_send_email_contains_action_links(adapter):
     mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
     mock_smtp_instance.__exit__ = MagicMock(return_value=False)
     mock_smtp_instance.send_message.side_effect = fake_send_message
-    with patch("urgent_contact.channels.email.smtplib.SMTP", MagicMock(return_value=mock_smtp_instance)):
+    with patch("the_show.urgent_contact.channels.email.smtplib.SMTP", MagicMock(return_value=mock_smtp_instance)):
         adapter.send("user@example.com", "Check this out", "channel-native", "3-abc-defsig")
 
     assert sent_messages
@@ -95,7 +95,7 @@ def test_send_links_include_handle(adapter):
     mock_smtp_instance.__enter__ = MagicMock(return_value=mock_smtp_instance)
     mock_smtp_instance.__exit__ = MagicMock(return_value=False)
     mock_smtp_instance.send_message.side_effect = fake_send_message
-    with patch("urgent_contact.channels.email.smtplib.SMTP", MagicMock(return_value=mock_smtp_instance)):
+    with patch("the_show.urgent_contact.channels.email.smtplib.SMTP", MagicMock(return_value=mock_smtp_instance)):
         adapter.send("mark@example.com", "urgent matter", "channel-native", "1-abc-sig")
 
     payload = sent_messages[0].as_string()
@@ -112,7 +112,7 @@ def test_poll_empty_when_no_responses(adapter, queue_db):
 
 
 def test_poll_returns_queued_response(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     expiry = int(time.time()) + 3600
     token = _make_token(1, "APPROVE", expiry)
     lq.write_link_response(1, "user@example.com", "APPROVE", token)
@@ -125,7 +125,7 @@ def test_poll_returns_queued_response(adapter, queue_db):
 
 
 def test_poll_consumes_responses(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     expiry = int(time.time()) + 3600
     token = _make_token(2, "REJECT", expiry)
     lq.write_link_response(2, "user@example.com", "REJECT", token)
@@ -137,7 +137,7 @@ def test_poll_consumes_responses(adapter, queue_db):
 
 
 def test_poll_filters_by_handle(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     expiry = int(time.time()) + 3600
     lq.write_link_response(1, "alice@example.com", "APPROVE", _make_token(1, "APPROVE", expiry))
     lq.write_link_response(1, "bob@example.com", "REJECT", _make_token(1, "REJECT", expiry))

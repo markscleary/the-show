@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from urgent_contact.channels.base import ChannelAdapter
-from urgent_contact.channels.whatsapp import WhatsAppChannel
+from the_show.urgent_contact.channels.base import ChannelAdapter
+from the_show.urgent_contact.channels.whatsapp import WhatsAppChannel
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def test_poll_empty_when_no_responses(adapter, queue_db):
 
 
 def test_poll_returns_queued_response(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     lq.write_whatsapp_response("+61412345678", "APPROVE 123456")
 
     results = adapter.poll_responses("+61412345678")
@@ -63,7 +63,7 @@ def test_poll_returns_queued_response(adapter, queue_db):
 
 
 def test_poll_consumes_responses(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     lq.write_whatsapp_response("+61412345678", "REJECT 654321")
 
     first = adapter.poll_responses("+61412345678")
@@ -73,7 +73,7 @@ def test_poll_consumes_responses(adapter, queue_db):
 
 
 def test_poll_filters_by_number(adapter, queue_db):
-    import urgent_contact.link_queue as lq
+    import the_show.urgent_contact.link_queue as lq
     lq.write_whatsapp_response("+61411111111", "APPROVE 111111")
     lq.write_whatsapp_response("+61422222222", "REJECT 222222")
 

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from urgent_contact.channels.base import ChannelAdapter, InboundResponse
-from urgent_contact.channels.telegram import TelegramChannel
+from the_show.urgent_contact.channels.base import ChannelAdapter, InboundResponse
+from the_show.urgent_contact.channels.telegram import TelegramChannel
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def test_supported_auth_methods(adapter):
 def test_send_calls_telegram_api(adapter):
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
-    with patch("urgent_contact.channels.telegram.requests.post", return_value=mock_resp) as mock_post:
+    with patch("the_show.urgent_contact.channels.telegram.requests.post", return_value=mock_resp) as mock_post:
         adapter.send("111111", "Urgent: please approve", "channel-native", None)
         mock_post.assert_called_once()
         call_kwargs = mock_post.call_args
@@ -55,7 +55,7 @@ def test_send_raises_on_api_error(adapter):
     import requests as req
     mock_resp = MagicMock()
     mock_resp.raise_for_status.side_effect = req.HTTPError("404")
-    with patch("urgent_contact.channels.telegram.requests.post", return_value=mock_resp):
+    with patch("the_show.urgent_contact.channels.telegram.requests.post", return_value=mock_resp):
         with pytest.raises(req.HTTPError):
             adapter.send("111111", "msg", "channel-native", None)
 
@@ -85,7 +85,7 @@ def test_poll_returns_response_for_matching_chat(adapter):
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
     mock_resp.json.return_value = _make_updates("111111", "111111", "APPROVE")
-    with patch("urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
+    with patch("the_show.urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
         results = adapter.poll_responses("111111")
     assert len(results) == 1
     assert results[0].raw_text == "APPROVE"
@@ -97,7 +97,7 @@ def test_poll_sets_verified_for_allowed_user(adapter):
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
     mock_resp.json.return_value = _make_updates("111111", "111111", "APPROVE")
-    with patch("urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
+    with patch("the_show.urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
         results = adapter.poll_responses("111111")
     assert results[0].channel_verified_identity is True
 
@@ -106,7 +106,7 @@ def test_poll_unverified_for_unknown_user(adapter):
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
     mock_resp.json.return_value = _make_updates("111111", "999999", "APPROVE")
-    with patch("urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
+    with patch("the_show.urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
         results = adapter.poll_responses("111111")
     assert results[0].channel_verified_identity is False
 
@@ -116,7 +116,7 @@ def test_poll_skips_other_chat_ids(adapter):
     mock_resp.raise_for_status = MagicMock()
     # update is from chat 999999, but we're polling for 111111
     mock_resp.json.return_value = _make_updates("999999", "999999", "APPROVE")
-    with patch("urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
+    with patch("the_show.urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
         results = adapter.poll_responses("111111")
     assert results == []
 
@@ -124,7 +124,7 @@ def test_poll_skips_other_chat_ids(adapter):
 def test_poll_returns_empty_on_network_error(adapter):
     import requests as req
     with patch(
-        "urgent_contact.channels.telegram.requests.get",
+        "the_show.urgent_contact.channels.telegram.requests.get",
         side_effect=req.ConnectionError("timeout"),
     ):
         results = adapter.poll_responses("111111")
@@ -136,7 +136,7 @@ def test_poll_advances_offset(adapter):
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
     mock_resp.json.return_value = _make_updates("111111", "111111", "APPROVE", update_id=7)
-    with patch("urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
+    with patch("the_show.urgent_contact.channels.telegram.requests.get", return_value=mock_resp):
         adapter.poll_responses("111111")
     assert adapter._offset == 8
 

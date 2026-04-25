@@ -19,7 +19,7 @@ class MockChannel:
     supported_auth_methods = ["channel-native", "reply-token", "signed-link"]
 
     def send(self, handle: str, message: str, auth_method: str, auth_token: str | None) -> None:
-        import urgent_contact.channels.mock as _m
+        import the_show.urgent_contact.channels.mock as _m
         _m.MOCK_DIR.mkdir(parents=True, exist_ok=True)
         print(f"[MOCK CHANNEL: mock] >>> To {handle}")
         for line in message.splitlines():
@@ -36,7 +36,7 @@ class MockChannel:
 
     def poll_responses(self, handle: str) -> List[InboundResponse]:
         """Return all responses in the file addressed to handle."""
-        import urgent_contact.channels.mock as _m
+        import the_show.urgent_contact.channels.mock as _m
         if not _m.RESPONSES_FILE.exists():
             return []
         results: List[InboundResponse] = []

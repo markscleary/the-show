@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from models import ShowSettings
-from state import (
+from the_show.models import ShowSettings
+from the_show.state import (
     cancel_pending_sends,
     create_urgent_matter,
     create_urgent_send,
@@ -16,15 +16,15 @@ from state import (
     mark_send_sent,
     update_urgent_matter,
 )
-from urgent_contact.auth import (
+from the_show.urgent_contact.auth import (
     generate_reply_token,
     generate_signed_token,
     token_in_text,
     verify_signed_token,
 )
-from urgent_contact.channels.base import ChannelAdapter, InboundResponse
-from urgent_contact.parser import INVALID_FORMAT_REPLY, parse_keyword
-from urgent_contact.throttle import UrgentThrottle
+from the_show.urgent_contact.channels.base import ChannelAdapter, InboundResponse
+from the_show.urgent_contact.parser import INVALID_FORMAT_REPLY, parse_keyword
+from the_show.urgent_contact.throttle import UrgentThrottle
 
 Resolution = str  # APPROVE | REJECT | STOP | CONTINUE | exhausted | throttled
 
@@ -36,8 +36,8 @@ def load_adapters(rehearsal: bool = False) -> dict[str, "ChannelAdapter"]:
     """
     import logging
     import os
-    from urgent_contact.channels.mock import MockChannel
-    from urgent_contact.channels import config as cfg
+    from the_show.urgent_contact.channels.mock import MockChannel
+    from the_show.urgent_contact.channels import config as cfg
 
     if os.environ.get("SHOW_TEST_MODE") == "1" or rehearsal:
         if rehearsal:
@@ -50,7 +50,7 @@ def load_adapters(rehearsal: bool = False) -> dict[str, "ChannelAdapter"]:
 
     token = cfg.telegram_bot_token()
     if token:
-        from urgent_contact.channels.telegram import TelegramChannel
+        from the_show.urgent_contact.channels.telegram import TelegramChannel
         adapters["telegram"] = TelegramChannel(
             bot_token=token,
             allowed_user_ids=cfg.telegram_allowed_user_ids(),
@@ -60,7 +60,7 @@ def load_adapters(rehearsal: bool = False) -> dict[str, "ChannelAdapter"]:
 
     smtp = cfg.smtp_config()
     if smtp and smtp.get("signing_secret"):
-        from urgent_contact.channels.email import EmailChannel
+        from the_show.urgent_contact.channels.email import EmailChannel
         adapters["email"] = EmailChannel(
             smtp_host=str(smtp["smtp_host"]),
             smtp_port=int(smtp["smtp_port"]),  # type: ignore[arg-type]
@@ -77,7 +77,7 @@ def load_adapters(rehearsal: bool = False) -> dict[str, "ChannelAdapter"]:
 
     wa = cfg.whatsapp_config()
     if wa:
-        from urgent_contact.channels.whatsapp import WhatsAppChannel
+        from the_show.urgent_contact.channels.whatsapp import WhatsAppChannel
         adapters["whatsapp"] = WhatsAppChannel(**wa)
     else:
         logging.warning("[adapters] URGENT_WHATSAPP_ACCESS_TOKEN not set — whatsapp not loaded")
@@ -85,7 +85,7 @@ def load_adapters(rehearsal: bool = False) -> dict[str, "ChannelAdapter"]:
     twilio = cfg.twilio_config()
     if twilio:
         try:
-            from urgent_contact.channels.sms import SMSChannel
+            from the_show.urgent_contact.channels.sms import SMSChannel
             adapters["sms"] = SMSChannel(**twilio)
         except ImportError:
             logging.warning("[adapters] twilio not installed — sms not loaded")

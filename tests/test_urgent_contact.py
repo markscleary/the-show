@@ -10,10 +10,10 @@ from typing import Any, Dict, List
 
 import pytest
 
-import state as state_module
-from loader import load_show
-from models import Scene, ShowSettings, Strategy, CutRule, AdaptiveConfig, RetryPolicy
-from state import (
+from the_show import state as state_module
+from the_show.loader import load_show
+from the_show.models import Scene, ShowSettings, Strategy, CutRule, AdaptiveConfig, RetryPolicy
+from the_show.state import (
     count_unplanned_urgent_matters,
     create_urgent_matter,
     get_sends_for_matter,
@@ -21,16 +21,16 @@ from state import (
     initialize_state,
     log_urgent_response,
 )
-from urgent_contact.auth import (
+from the_show.urgent_contact.auth import (
     generate_reply_token,
     generate_signed_token,
     verify_signed_token,
 )
-from urgent_contact.channels.mock import MockChannel
-from urgent_contact.degradation import prune_dag_on_blocked
-from urgent_contact.dispatcher import UrgentContactDispatcher
-from urgent_contact.parser import parse_keyword
-from urgent_contact.throttle import UrgentThrottle
+from the_show.urgent_contact.channels.mock import MockChannel
+from the_show.urgent_contact.degradation import prune_dag_on_blocked
+from the_show.urgent_contact.dispatcher import UrgentContactDispatcher
+from the_show.urgent_contact.parser import parse_keyword
+from the_show.urgent_contact.throttle import UrgentThrottle
 
 YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
 
@@ -45,7 +45,7 @@ FAST_TIMEOUT = 1.0  # test deadline (seconds via env)
 @pytest.fixture
 def mock_dirs(tmp_path, monkeypatch):
     """Redirect MockChannel paths and state to tmp dirs."""
-    import urgent_contact.channels.mock as mock_mod
+    import the_show.urgent_contact.channels.mock as mock_mod
     mock_dir = tmp_path / "urgent-mock"
     mock_dir.mkdir()
     sends_log = mock_dir / "sends.log"
@@ -414,7 +414,7 @@ def test_reply_token_auth_passes_with_token(tmp_state_dirs, mock_dirs, monkeypat
     db_path = str(state_module.STATE_BASE / f"{show.id}.db")
 
     # Patch at the dispatcher's import site so the local reference is updated.
-    import urgent_contact.dispatcher as disp_mod
+    import the_show.urgent_contact.dispatcher as disp_mod
     monkeypatch.setattr(disp_mod, "generate_reply_token", lambda: "999999")
 
     _write_response_after_delay(mock_dirs, "@op", "APPROVE 999999", delay=0.1)
@@ -433,7 +433,7 @@ def test_unauthenticated_reply_token_dropped(tmp_state_dirs, mock_dirs, monkeypa
     db_path = str(state_module.STATE_BASE / f"{show.id}.db")
 
     # Force token to a known value (patch at dispatcher's import site)
-    import urgent_contact.dispatcher as disp_mod
+    import the_show.urgent_contact.dispatcher as disp_mod
     monkeypatch.setattr(disp_mod, "generate_reply_token", lambda: "111111")
 
     # Write a response WITHOUT the token — should be dropped
@@ -708,10 +708,10 @@ def test_dag_pruning_returns_empty_for_leaf(tmp_state_dirs):
 
 def test_executor_human_approval_resolves_approve(tmp_state_dirs, mock_dirs, monkeypatch):
     """When the operator responds APPROVE, the show continues past the human-approval scene."""
-    from executor import run_show
+    from the_show.executor import run_show
 
     # Patch at the dispatcher's import site so the local reference is updated.
-    import urgent_contact.dispatcher as disp_mod
+    import the_show.urgent_contact.dispatcher as disp_mod
     monkeypatch.setattr(disp_mod, "generate_reply_token", lambda: "777777")
     monkeypatch.setenv("THE_SHOW_POLL_INTERVAL", "0.05")
 
@@ -729,7 +729,7 @@ def test_executor_human_approval_resolves_approve(tmp_state_dirs, mock_dirs, mon
 
 def test_executor_exhausted_sets_blocked_no_response(tmp_state_dirs, mock_dirs, monkeypatch):
     """When no response arrives, approve_run becomes blocked-no-response."""
-    from executor import run_show
+    from the_show.executor import run_show
 
     monkeypatch.setenv("THE_SHOW_URGENT_TIMEOUT", "1")
     monkeypatch.setenv("THE_SHOW_POLL_INTERVAL", "0.1")
@@ -745,7 +745,7 @@ def test_executor_exhausted_sets_blocked_no_response(tmp_state_dirs, mock_dirs, 
 
 def test_executor_blocked_no_response_triggers_dag_pruning(tmp_state_dirs, mock_dirs, monkeypatch):
     """blocked-no-response on approve_run cascades to scenes that depend on it."""
-    from executor import run_show
+    from the_show.executor import run_show
 
     monkeypatch.setenv("THE_SHOW_URGENT_TIMEOUT", "1")
     monkeypatch.setenv("THE_SHOW_POLL_INTERVAL", "0.1")
@@ -761,7 +761,7 @@ def test_executor_blocked_no_response_triggers_dag_pruning(tmp_state_dirs, mock_
 
 def test_stub_not_present_in_executor():
     """Verify the Session 2 stub function has been removed from executor.py."""
-    import executor
+    from the_show import executor
     assert not hasattr(executor, "stub_urgent_contact_approval"), (
         "stub_urgent_contact_approval should have been removed in Session 3"
     )
@@ -769,9 +769,9 @@ def test_stub_not_present_in_executor():
 
 def test_urgent_contact_resolved_event_logged(tmp_state_dirs, mock_dirs, monkeypatch):
     """The executor logs an urgent_contact_resolved event (not the old stub event)."""
-    from executor import run_show
+    from the_show.executor import run_show
     # Patch at the dispatcher's import site (direct import — auth_mod patch won't reach it)
-    import urgent_contact.dispatcher as disp_mod
+    import the_show.urgent_contact.dispatcher as disp_mod
     monkeypatch.setattr(disp_mod, "generate_reply_token", lambda: "888888")
     monkeypatch.setenv("THE_SHOW_POLL_INTERVAL", "0.05")
 

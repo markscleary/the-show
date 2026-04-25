@@ -75,8 +75,8 @@ def test_migration_is_idempotent(tmp_path):
 
 def test_existing_state_functions_still_work_after_migration(tmp_path, monkeypatch):
     """Existing state.py functions work correctly on a DB that has had migrations applied."""
-    import state as state_mod
-    from models import Scene, ShowSettings, Strategy
+    from the_show import state as state_mod
+    from the_show.models import Scene, ShowSettings, Strategy
 
     db_dir = tmp_path / "state"
     db_dir.mkdir()

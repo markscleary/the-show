@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from state import get_monitor_events, show_exists
-from monitor.watcher import request_stop
+from the_show.state import get_monitor_events, show_exists
+from the_show.monitor.watcher import request_stop
 
 
 def cmd_monitor_start(show_id: str) -> int:
@@ -18,7 +18,7 @@ def cmd_monitor_start(show_id: str) -> int:
         print(f"No state found for show '{show_id}'")
         return 1
 
-    from monitor.watcher import run_monitor, DEFAULT_POLL_INTERVAL
+    from the_show.monitor.watcher import run_monitor, DEFAULT_POLL_INTERVAL
     run_monitor(show_id, poll_interval=DEFAULT_POLL_INTERVAL)
     return 0
 

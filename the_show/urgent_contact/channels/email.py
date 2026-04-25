@@ -11,9 +11,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Optional
 
-from urgent_contact.channels.base import InboundResponse
-from urgent_contact.channels.adapter_base import AbstractChannelAdapter
-from urgent_contact import link_queue
+from the_show.urgent_contact.channels.base import InboundResponse
+from the_show.urgent_contact.channels.adapter_base import AbstractChannelAdapter
+from the_show.urgent_contact import link_queue
 
 _ACTIONS = ["APPROVE", "REJECT", "STOP", "CONTINUE"]
 

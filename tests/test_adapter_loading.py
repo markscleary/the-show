@@ -5,8 +5,8 @@ import logging
 
 import pytest
 
-from urgent_contact.channels.mock import MockChannel
-from urgent_contact.dispatcher import load_adapters
+from the_show.urgent_contact.channels.mock import MockChannel
+from the_show.urgent_contact.dispatcher import load_adapters
 
 
 def test_returns_only_mock_when_no_env_vars(monkeypatch):

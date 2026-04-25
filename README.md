@@ -2,7 +2,7 @@
 
 A framework for running agents unattended — scenes, fallbacks, adaptive variations, urgent contact escalation, and a programme at the end.
 
-**Status:** v1.0.0 — production-ready, used in real operations at [Short+Sweet International](https://shortandsweet.org). Open source, runtime free.
+**Status:** v1.1.0 — production-ready, on PyPI, used in real operations at [Short+Sweet International](https://shortandsweet.org). Open source, runtime free.
 
 ---
 
@@ -103,30 +103,42 @@ The full programme is at [`examples/curiosity-cat-launch-announcement.yaml`](exa
 
 ---
 
+## Install
+
+```bash
+# From PyPI
+pip install the-show
+
+# Or from source
+git clone https://github.com/markscleary/the-show.git
+cd the-show
+pip install -e ".[dev]"
+```
+
+See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for a five-minute walkthrough.
+
+---
+
 ## How to run
 
 ```bash
-# Set up environment (once)
-uv venv --python 3.11 .venv
-uv pip install -r requirements.txt
-
 # Validate a show file
-uv run python cli.py validate example_show.yaml
+the-show validate example_show.yaml
 
 # Run a show (with crash-resume)
-uv run python cli.py run example_show.yaml
+the-show run example_show.yaml
 
 # Inspect current state
-uv run python cli.py peek outreach-enrichment-001
+the-show peek outreach-enrichment-001
 
 # Regenerate programme from saved state
-uv run python cli.py programme outreach-enrichment-001
+the-show programme outreach-enrichment-001
 
 # Print event log
-uv run python cli.py events outreach-enrichment-001 [--since=<ISO>] [--limit=N]
+the-show events outreach-enrichment-001 [--since=<ISO>] [--limit=N]
 
-# Run tests
-uv run pytest tests/
+# Run tests (from a source checkout)
+pytest tests/
 ```
 
 State DB: `~/.the-show/state/<show-id>.db`

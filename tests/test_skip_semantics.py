@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-import state as state_mod
-from executor import run_show
-from models import (
+from the_show import state as state_mod
+from the_show.executor import run_show
+from the_show.models import (
     CutRule,
     RetryPolicy,
     Scene,

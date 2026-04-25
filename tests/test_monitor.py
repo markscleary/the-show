@@ -11,8 +11,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-import state as state_mod
-from state import (
+from the_show import state as state_mod
+from the_show.state import (
     add_event,
     add_monitor_event,
     get_monitor_events,
@@ -20,7 +20,7 @@ from state import (
     acknowledge_monitor_events,
     initialize_state,
 )
-from monitor.patterns import (
+from the_show.monitor.patterns import (
     detect_stalled,
     detect_retry_storm,
     detect_cost_runaway,
@@ -28,7 +28,7 @@ from monitor.patterns import (
     detect_oscillation,
     check_ollama_available,
 )
-from monitor.watcher import run_monitor, request_stop
+from the_show.monitor.watcher import run_monitor, request_stop
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -264,7 +264,7 @@ def test_check_ollama_returns_none_when_unreachable():
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_add_and_retrieve_monitor_event(tmp_state_dirs):
-    from loader import load_show
+    from the_show.loader import load_show
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -285,7 +285,7 @@ def test_add_and_retrieve_monitor_event(tmp_state_dirs):
 
 
 def test_acknowledge_monitor_events(tmp_state_dirs):
-    from loader import load_show
+    from the_show.loader import load_show
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -305,7 +305,7 @@ def test_acknowledge_monitor_events(tmp_state_dirs):
 
 
 def test_acknowledged_events_do_not_re_trigger(tmp_state_dirs):
-    from loader import load_show
+    from the_show.loader import load_show
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -324,7 +324,7 @@ def test_acknowledged_events_do_not_re_trigger(tmp_state_dirs):
 
 def test_monitor_detects_stalled_and_writes_event(tmp_state_dirs, monkeypatch):
     """Monitor should write a stalled monitor_event when last DB event is old."""
-    from loader import load_show
+    from the_show.loader import load_show
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -342,7 +342,7 @@ def test_monitor_detects_stalled_and_writes_event(tmp_state_dirs, monkeypatch):
     conn.close()
 
     # Monkeypatch STATE_BASE in watcher to match test's tmp dir
-    import monitor.watcher as watcher_mod
+    import the_show.monitor.watcher as watcher_mod
     monkeypatch.setattr(watcher_mod, "_state_mod", state_mod)
 
     # Run one monitor iteration (not a loop) by calling the poll logic directly
@@ -361,7 +361,7 @@ def test_monitor_detects_stalled_and_writes_event(tmp_state_dirs, monkeypatch):
 
 
 def test_monitor_detects_retry_storm_and_writes_event(tmp_state_dirs, monkeypatch):
-    from loader import load_show
+    from the_show.loader import load_show
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -390,7 +390,7 @@ def test_monitor_detects_retry_storm_and_writes_event(tmp_state_dirs, monkeypatc
 
 
 def test_monitor_detects_cost_runaway_and_writes_event(tmp_state_dirs, monkeypatch):
-    from loader import load_show
+    from the_show.loader import load_show
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -417,7 +417,7 @@ def test_monitor_detects_cost_runaway_and_writes_event(tmp_state_dirs, monkeypat
 
 
 def test_monitor_detects_policy_denials_and_writes_event(tmp_state_dirs, monkeypatch):
-    from loader import load_show
+    from the_show.loader import load_show
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -450,8 +450,8 @@ def test_monitor_detects_policy_denials_and_writes_event(tmp_state_dirs, monkeyp
 
 def test_stage_manager_escalates_on_cost_runaway(tmp_state_dirs, fast_approval, monkeypatch):
     """A cost-runaway monitor event that matches bible escalation should be acknowledged."""
-    from loader import load_show
-    from executor import _handle_monitor_signals
+    from the_show.loader import load_show
+    from the_show.executor import _handle_monitor_signals
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -473,7 +473,7 @@ def test_stage_manager_escalates_on_cost_runaway(tmp_state_dirs, fast_approval, 
             dispatched.append(kwargs)
             return "APPROVE"
 
-    monkeypatch.setattr("urgent_contact.dispatcher.UrgentContactDispatcher", MockDispatcher)
+    monkeypatch.setattr("the_show.urgent_contact.dispatcher.UrgentContactDispatcher", MockDispatcher)
 
     _handle_monitor_signals(show.id, show, state)
 
@@ -484,8 +484,8 @@ def test_stage_manager_escalates_on_cost_runaway(tmp_state_dirs, fast_approval, 
 
 def test_stage_manager_does_not_escalate_oscillation(tmp_state_dirs, monkeypatch):
     """Oscillation events should be acknowledged as warnings, not escalated."""
-    from loader import load_show
-    from executor import _handle_monitor_signals
+    from the_show.loader import load_show
+    from the_show.executor import _handle_monitor_signals
     from pathlib import Path
     YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"
     show = load_show(YAML_PATH)
@@ -503,7 +503,7 @@ def test_stage_manager_does_not_escalate_oscillation(tmp_state_dirs, monkeypatch
             dispatched.append(kwargs)
             return "APPROVE"
 
-    monkeypatch.setattr("urgent_contact.dispatcher.UrgentContactDispatcher", MockDispatcher)
+    monkeypatch.setattr("the_show.urgent_contact.dispatcher.UrgentContactDispatcher", MockDispatcher)
 
     _handle_monitor_signals(show.id, show, state_obj)
 

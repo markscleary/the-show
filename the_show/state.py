@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from models import SceneState, ShowSettings, ShowState
+from the_show.models import SceneState, ShowSettings, ShowState
 
 STATE_BASE = Path.home() / ".the-show" / "state"
 

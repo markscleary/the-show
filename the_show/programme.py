@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-import state as _state
+from the_show import state as _state
 
 OUT_BASE = Path.home() / ".the-show" / "state"
 

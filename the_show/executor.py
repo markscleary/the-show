@@ -5,11 +5,11 @@ import random
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from adapters import AdapterResult, execute_strategy, is_side_effectful, attach_idempotency_key
-from models import AttemptRecord, Scene, ShowSettings, ShowState, Strategy
-from programme import generate_programme
-from sanitise import strip_markdown_fences
-from state import (
+from the_show.adapters import AdapterResult, execute_strategy, is_side_effectful, attach_idempotency_key
+from the_show.models import AttemptRecord, Scene, ShowSettings, ShowState, Strategy
+from the_show.programme import generate_programme
+from the_show.sanitise import strip_markdown_fences
+from the_show.state import (
     SUCCESS_STATES,
     TERMINAL_STATES,
     add_event,
@@ -126,7 +126,7 @@ def run_human_approval(
 
     # Rehearsal: resolve instantly with synthetic approval — no real channels
     if show.rehearsal:
-        from rehearsal_adapter import synthetic_approval, log_urgent_send
+        from the_show.rehearsal_adapter import synthetic_approval, log_urgent_send
         resolution = synthetic_approval()
         log_urgent_send(show.id, scene.scene, strategy.brief or scene.title, resolution)
 
@@ -167,7 +167,7 @@ def run_human_approval(
         )
         return success, result
 
-    from urgent_contact.dispatcher import UrgentContactDispatcher, load_adapters
+    from the_show.urgent_contact.dispatcher import UrgentContactDispatcher, load_adapters
 
     db_path = get_db_path(state.show_id)
     adapters = list(load_adapters().values())
@@ -393,7 +393,7 @@ def _handle_monitor_signals(show_id: str, show: "ShowSettings", state: "ShowStat
         should_escalate = any(escalate_when.get(k) for k in escalation_keys)
 
         if should_escalate and ev["severity"] in ("urgent", "critical") and not show.rehearsal:
-            from urgent_contact.dispatcher import UrgentContactDispatcher, load_adapters
+            from the_show.urgent_contact.dispatcher import UrgentContactDispatcher, load_adapters
             db_path = get_db_path(state.show_id)
             adapters = list(load_adapters().values())
             dispatcher = UrgentContactDispatcher(
@@ -490,7 +490,7 @@ def run_show(
     adaptive_enabled_global = improvisation in {"standard", "jazz"}
 
     for scene in show.running_order:
-        scene_state = state.scenes.setdefault(scene.scene, __import__("models").SceneState(scene=scene.scene))
+        scene_state = state.scenes.setdefault(scene.scene, __import__("the_show.models", fromlist=["SceneState"]).SceneState(scene=scene.scene))
 
         # Skip scenes already in a terminal state (resume path)
         if scene_state.status in TERMINAL_STATES:
@@ -630,7 +630,7 @@ def run_show(
             persist_scene_state(state.show_id, scene_state)
             add_event(state.show_id, "scene_blocked_no_response", scene_id=scene.scene)
             # DAG pruning: mark all dependent scenes as cascading-dependency-failure
-            from urgent_contact.degradation import prune_dag_on_blocked
+            from the_show.urgent_contact.degradation import prune_dag_on_blocked
             pruned = prune_dag_on_blocked(state, show, scene.scene)
             for pruned_id in pruned:
                 add_event(

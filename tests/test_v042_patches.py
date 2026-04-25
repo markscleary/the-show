@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-import state as state_mod
-from executor import run_show
-from models import (
+from the_show import state as state_mod
+from the_show.executor import run_show
+from the_show.models import (
     CutRule,
     RetryPolicy,
     Scene,
@@ -108,7 +108,7 @@ def test_successful_run_reaches_delivered_in_db(tmp_state_dirs):
 
 def test_delivery_failure_keeps_completed_status(tmp_state_dirs, monkeypatch):
     """If programme generation raises, show status stays 'completed' in the DB."""
-    import executor as executor_mod
+    from the_show import executor as executor_mod
 
     def _failing_generate(*args, **kwargs):
         raise RuntimeError("simulated programme generation failure")

@@ -6,9 +6,9 @@ import json
 import httpx
 import pytest
 
-import adapters
-from adapters import _FALLBACK_MODEL, call_sub_agent
-from executor import meets_success
+from the_show import adapters
+from the_show.adapters import _FALLBACK_MODEL, call_sub_agent
+from the_show.executor import meets_success
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -173,8 +173,8 @@ def test_sleep_called_between_retries(monkeypatch):
 
 def test_execute_strategy_sub_agent_returns_output(monkeypatch):
     """execute_strategy with sub-agent method calls call_sub_agent and wraps result."""
-    from adapters import execute_strategy
-    from models import Strategy
+    from the_show.adapters import execute_strategy
+    from the_show.models import Strategy
 
     expected = {"name": "Test", "value": 42}
     monkeypatch.setattr(adapters, "call_sub_agent", lambda model, prompt, **kw: dict(expected))
@@ -193,8 +193,8 @@ def test_execute_strategy_sub_agent_returns_output(monkeypatch):
 
 def test_execute_strategy_sub_agent_propagates_cost(monkeypatch):
     """Cost sentinel in call_sub_agent output is extracted into AdapterResult."""
-    from adapters import execute_strategy
-    from models import Strategy
+    from the_show.adapters import execute_strategy
+    from the_show.models import Strategy
 
     monkeypatch.setattr(
         adapters,
@@ -250,8 +250,8 @@ def test_sub_agent_unwraps_gemini_content_metadata_envelope(monkeypatch):
     Note: conftest patches call_sub_agent globally; this test overrides that patch to
     inject the Gemini-wrapped payload directly into the execute_strategy pipeline.
     """
-    from adapters import execute_strategy
-    from models import Strategy
+    from the_show.adapters import execute_strategy
+    from the_show.models import Strategy
 
     inner = {"text": "hello", "char_count": 5}
     wrapped = {"content": inner, "metadata": {"model": "gemini-flash"}}
@@ -280,8 +280,8 @@ def test_sub_agent_schema_payload_not_double_wrapped(monkeypatch):
     Note: conftest patches call_sub_agent globally; this test overrides that patch to
     inject the clean payload directly into the execute_strategy pipeline.
     """
-    from adapters import execute_strategy
-    from models import Strategy
+    from the_show.adapters import execute_strategy
+    from the_show.models import Strategy
 
     expected = {"text": "hello", "char_count": 5}
 

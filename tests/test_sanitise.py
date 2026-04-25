@@ -1,5 +1,5 @@
 """Tests for markdown fence stripping."""
-from sanitise import strip_markdown_fences
+from the_show.sanitise import strip_markdown_fences
 
 
 def test_no_fences_unchanged():

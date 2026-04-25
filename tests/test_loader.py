@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from loader import load_show, ValidationError
+from the_show.loader import load_show, ValidationError
 
 
 YAML_PATH = Path(__file__).parent.parent / "example_show.yaml"

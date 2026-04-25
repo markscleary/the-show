@@ -19,7 +19,7 @@ import time
 
 from flask import Flask, jsonify, request
 
-from urgent_contact import link_queue
+from the_show.urgent_contact import link_queue
 
 app = Flask(__name__)
 

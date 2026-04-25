@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-import state as state_mod
-from executor import run_show
-from models import (
+from the_show import state as state_mod
+from the_show.executor import run_show
+from the_show.models import (
     AdaptiveConfig,
     Bible,
     CutRule,
@@ -81,7 +81,7 @@ def _make_show(
 
 def test_rehearsal_programme_runs_to_completion(tmp_state_dirs, monkeypatch):
     """Rehearsal mode runs a full programme to completed status with all scenes played."""
-    import rehearsal_adapter
+    from the_show import rehearsal_adapter
     monkeypatch.setattr(rehearsal_adapter, "REHEARSAL_DIR", tmp_state_dirs / "rehearsal")
 
     show = _make_show(
@@ -97,8 +97,8 @@ def test_rehearsal_programme_runs_to_completion(tmp_state_dirs, monkeypatch):
 
 def test_rehearsal_no_real_llm_calls(tmp_state_dirs, monkeypatch):
     """In rehearsal mode, call_sub_agent is never invoked."""
-    import adapters
-    import rehearsal_adapter
+    from the_show import adapters
+    from the_show import rehearsal_adapter
     monkeypatch.setattr(rehearsal_adapter, "REHEARSAL_DIR", tmp_state_dirs / "rehearsal")
 
     called = []
@@ -117,8 +117,8 @@ def test_rehearsal_no_real_llm_calls(tmp_state_dirs, monkeypatch):
 
 def test_rehearsal_no_real_channel_sends(tmp_state_dirs, monkeypatch):
     """In rehearsal mode, UrgentContactDispatcher.raise_urgent_matter is never called."""
-    import rehearsal_adapter
-    import urgent_contact.dispatcher as disp_mod
+    from the_show import rehearsal_adapter
+    import the_show.urgent_contact.dispatcher as disp_mod
     monkeypatch.setattr(rehearsal_adapter, "REHEARSAL_DIR", tmp_state_dirs / "rehearsal")
 
     dispatch_calls = []
@@ -144,7 +144,7 @@ def test_rehearsal_no_real_channel_sends(tmp_state_dirs, monkeypatch):
 
 def test_rehearsal_urgent_contact_logged_to_file(tmp_state_dirs, monkeypatch):
     """In rehearsal mode, urgent-contact events are logged to the rehearsal log file."""
-    import rehearsal_adapter
+    from the_show import rehearsal_adapter
     rehearsal_dir = tmp_state_dirs / "rehearsal"
     monkeypatch.setattr(rehearsal_adapter, "REHEARSAL_DIR", rehearsal_dir)
     monkeypatch.delenv("SHOW_REHEARSAL_APPROVAL", raising=False)
@@ -166,7 +166,7 @@ def test_rehearsal_urgent_contact_logged_to_file(tmp_state_dirs, monkeypatch):
 
 def test_rehearsal_approval_resolves_synthetically(tmp_state_dirs, monkeypatch):
     """In rehearsal mode, approval-wait resolves immediately with APPROVE by default."""
-    import rehearsal_adapter
+    from the_show import rehearsal_adapter
     monkeypatch.setattr(rehearsal_adapter, "REHEARSAL_DIR", tmp_state_dirs / "rehearsal")
     monkeypatch.delenv("SHOW_REHEARSAL_APPROVAL", raising=False)
 
@@ -187,7 +187,7 @@ def test_rehearsal_approval_resolves_synthetically(tmp_state_dirs, monkeypatch):
 
 def test_rehearsal_failure_injection(tmp_state_dirs, monkeypatch):
     """SHOW_REHEARSAL_APPROVAL=REJECT causes approval scenes to fail."""
-    import rehearsal_adapter
+    from the_show import rehearsal_adapter
     monkeypatch.setattr(rehearsal_adapter, "REHEARSAL_DIR", tmp_state_dirs / "rehearsal")
     monkeypatch.setenv("SHOW_REHEARSAL_APPROVAL", "REJECT")
 

@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from urgent_contact.channels.base import InboundResponse
-from urgent_contact import link_queue
+from the_show.urgent_contact.channels.base import InboundResponse
+from the_show.urgent_contact import link_queue
 
 
 class WhatsAppChannel:
