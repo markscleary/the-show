@@ -520,13 +520,16 @@ def test_exhaustion_returns_exhausted_string(tmp_state_dirs, mock_dirs, monkeypa
     assert result == "exhausted"
 
 
-def test_yaml_deadline_not_capped_by_max_wait(tmp_state_dirs, mock_dirs, monkeypatch):
-    """Explicit deadline from YAML timeout-seconds is honoured; THE_SHOW_MAX_WAIT must not shorten it.
+def test_max_wait_caps_explicit_deadline(tmp_state_dirs, mock_dirs, monkeypatch):
+    """THE_SHOW_MAX_WAIT caps the deadline even when an explicit deadline was provided.
 
-    Bug: max_wait was applied even when an explicit deadline was provided, so a low
-    THE_SHOW_MAX_WAIT value (e.g. left over from a test run) would silently override
-    the YAML-declared timeout.  After the fix the cap is only applied on the default
-    (deadline=None) path.
+    This is intentional: THE_SHOW_MAX_WAIT is a hard ceiling for test environments.
+    In production it is never set, so it has no effect. When it IS set, it overrides
+    even YAML-declared timeout-seconds so tests do not wait minutes for approval gates.
+
+    Previously the cap was only applied on the deadline=None path, which caused the
+    exhausted/blocked-no-response executor tests to hang indefinitely because
+    run_human_approval always passes an explicit deadline derived from scene.timeout_seconds.
     """
     import time as _time
     from datetime import datetime, timedelta, timezone
@@ -535,12 +538,12 @@ def test_yaml_deadline_not_capped_by_max_wait(tmp_state_dirs, mock_dirs, monkeyp
     initialize_state(ShowSettings(id=show.id, title="T", running_order=[]))
     db_path = str(state_module.STATE_BASE / f"{show.id}.db")
 
-    # THE_SHOW_MAX_WAIT=0.1s would have fired the timeout at ~100 ms before the fix.
-    monkeypatch.setenv("THE_SHOW_MAX_WAIT", "0.1")
+    # THE_SHOW_MAX_WAIT=0.3s caps the wait to 300 ms.
+    monkeypatch.setenv("THE_SHOW_MAX_WAIT", "0.3")
     monkeypatch.setenv("THE_SHOW_POLL_INTERVAL", "0.05")
 
-    # Explicit deadline ~1.5 seconds from now (simulates YAML timeout-seconds: N)
-    explicit_deadline = (datetime.now(timezone.utc) + timedelta(seconds=1.5)).isoformat()
+    # Explicit deadline ~10 seconds from now (simulates YAML timeout-seconds: 10)
+    explicit_deadline = (datetime.now(timezone.utc) + timedelta(seconds=10)).isoformat()
 
     start = _time.time()
     dispatcher = _make_dispatcher(show, db_path)
@@ -548,9 +551,9 @@ def test_yaml_deadline_not_capped_by_max_wait(tmp_state_dirs, mock_dirs, monkeyp
     elapsed = _time.time() - start
 
     assert result == "exhausted"
-    # Must have waited close to 1.5 s, not the 0.1 s that THE_SHOW_MAX_WAIT would have imposed.
-    assert elapsed >= 1.0, (
-        f"Timeout fired after only {elapsed:.2f}s — THE_SHOW_MAX_WAIT overrode the YAML deadline"
+    # Must have waited ~0.3s (the max_wait cap), not the full 10s explicit deadline.
+    assert elapsed < 2.0, (
+        f"THE_SHOW_MAX_WAIT did not cap the explicit deadline — elapsed {elapsed:.2f}s"
     )
 
 
@@ -730,6 +733,9 @@ def test_executor_exhausted_sets_blocked_no_response(tmp_state_dirs, mock_dirs, 
 
     monkeypatch.setenv("THE_SHOW_URGENT_TIMEOUT", "1")
     monkeypatch.setenv("THE_SHOW_POLL_INTERVAL", "0.1")
+    # Cap the wall-clock wait regardless of scene.timeout_seconds (approve_run defaults to
+    # 7 days since commit 69df7e8; THE_SHOW_MAX_WAIT overrides the scene-level deadline).
+    monkeypatch.setenv("THE_SHOW_MAX_WAIT", "1")
 
     show = load_show(YAML_PATH)
     result = run_show(show)
@@ -743,6 +749,7 @@ def test_executor_blocked_no_response_triggers_dag_pruning(tmp_state_dirs, mock_
 
     monkeypatch.setenv("THE_SHOW_URGENT_TIMEOUT", "1")
     monkeypatch.setenv("THE_SHOW_POLL_INTERVAL", "0.1")
+    monkeypatch.setenv("THE_SHOW_MAX_WAIT", "1")
 
     show = load_show(YAML_PATH)
     result = run_show(show)

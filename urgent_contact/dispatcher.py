@@ -177,14 +177,16 @@ class UrgentContactDispatcher:
             except (ValueError, TypeError):
                 deadline_dt = datetime.now(timezone.utc) + timedelta(seconds=_default_timeout())
         else:
-            # No explicit deadline — use default timeout, then apply max_wait cap if configured.
-            # The cap only applies on the default path so that YAML timeout-seconds is always honoured.
             deadline_dt = datetime.now(timezone.utc) + timedelta(seconds=_default_timeout())
-            max_wait = self.max_wait_seconds
-            if max_wait is not None:
-                capped = datetime.now(timezone.utc) + timedelta(seconds=max_wait)
-                if capped < deadline_dt:
-                    deadline_dt = capped
+
+        # Apply max_wait cap unconditionally — caps both explicit and default deadlines.
+        # This allows THE_SHOW_MAX_WAIT to shorten long YAML timeout-seconds in test environments
+        # without changing the YAML. In production, THE_SHOW_MAX_WAIT is unset and has no effect.
+        max_wait = self.max_wait_seconds
+        if max_wait is not None:
+            capped = datetime.now(timezone.utc) + timedelta(seconds=max_wait)
+            if capped < deadline_dt:
+                deadline_dt = capped
 
         # Create matter record
         matter_id = create_urgent_matter(

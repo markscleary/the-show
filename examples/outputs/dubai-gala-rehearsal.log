@@ -1,0 +1,12 @@
+[WARN] Scene 'approve_drafts' is an approval gate with timeout_seconds=7200 (less than 24 hours). Consider whether this is intentional — approval gates should wait for humans.
+[REHEARSAL MODE] No real LLM calls, no real channel sends, approvals synthetic.
+Previous run (delivered) archived to: dubai-gala-night-of-show_20260422T221857.db.abandoned
+[INFO] Basic schema check for 'object' — OK
+[INFO] Basic schema check for 'object' — OK
+[INFO] Basic schema check for 'object' — OK
+[INFO] Basic schema check for 'object' — OK
+[INFO] Basic schema check for 'object' — OK
+
+Show finished: completed
+Total cost: $0.0000
+State DB: /Users/markshortandsweet.org/.the-show/state/dubai-gala-night-of-show.db
