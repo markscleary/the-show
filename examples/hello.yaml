@@ -1,0 +1,32 @@
+show:
+  id: hello-001
+  title: "Hello, The Show"
+  max-duration-seconds: 60
+  max-scenes: 5
+
+  sliders:
+    risk: housecat
+    improvisation: script
+
+  bible:
+    objective: "Write a greeting to a file and confirm it was written"
+
+  running-order:
+
+    - scene: write_greeting
+      title: "Write greeting"
+      outputs:
+        path:
+          type: string
+          schema: string
+      principal:
+        method: tool-call
+        agent: stage-manager
+        action: write-json
+        params:
+          path: /tmp/hello-from-the-show.json
+      success-when:
+        schema: string
+      cut:
+        condition: continue
+        reason: "Write failed — continuing anyway"
