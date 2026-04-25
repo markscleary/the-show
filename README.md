@@ -16,6 +16,51 @@ The v1.0 release was built by running The Show on itself — `examples/build-v1.
 
 ---
 
+Here's what a programme looks like — three scenes from the Curiosity Cat launch announcement that ran on 23 April 2026:
+
+```yaml
+running-order:
+
+  - scene: draft_english
+    title: "Draft English announcement"
+    outputs:
+      post: {type: object}
+    principal:
+      method: sub-agent
+      agent: gemini
+      brief: "Draft a 280-char social post for the Curiosity Cat launch."
+      params: {model: gemini-flash}
+    cut: {condition: escalate, reason: "Cannot proceed without English draft"}
+
+  - scene: draft_arabic
+    title: "Draft Arabic announcement"
+    depends-on: [draft_english]
+    inputs:
+      english_post: from(draft_english.post)
+    outputs:
+      post: {type: object}
+    principal:
+      method: sub-agent
+      agent: gemini
+      brief: "Translate the English post to natural Arabic for the UAE market."
+      params: {model: gemini-flash}
+    cut: {condition: escalate}
+
+  - scene: approve_drafts
+    title: "Operator approval"
+    depends-on: [draft_english, draft_arabic]
+    outputs:
+      decision: {type: string}
+    principal:
+      method: human-approval
+      brief: "Reply APPROVE to publish, REJECT to abort."
+    cut: {condition: escalate}
+```
+
+The full programme is at [`examples/curiosity-cat-launch-announcement.yaml`](examples/curiosity-cat-launch-announcement.yaml). The operator guide explains the metaphor and the mechanics in detail — see [`docs/OPERATOR_GUIDE.md`](docs/OPERATOR_GUIDE.md).
+
+---
+
 ## Current state
 
 **Version:** v1.0.0 — 231 passing tests
