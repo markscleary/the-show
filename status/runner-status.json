@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-04-25T03:20:00Z",
-  "runner_state": "alive",
-  "runner_pid": "662",
-  "in_flight_brief": "compress-downloads-images",
+  "updated_at": "2026-04-25T03:22:00Z",
+  "runner_state": "restarted",
+  "runner_pid": "15626",
+  "in_flight_brief": "",
   "host": "markshortandsweetorgs-Mac-mini.local"
 }
