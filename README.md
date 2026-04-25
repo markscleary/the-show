@@ -221,6 +221,16 @@ ngrok http 5099
 # Use the resulting https://*.ngrok.io URL in Meta / Twilio dashboards
 ```
 
+---
+
+## Documentation
+
+- **[Quickstart](docs/QUICKSTART.md)** — get a programme running in 5 minutes.
+- **[Operator Guide](docs/OPERATOR_GUIDE.md)** — the theatrical metaphor, how scenes work, approval gates, urgent contact mechanics. The starting point for anyone running The Show.
+- **[Spec v0.4.2](docs/SS_The_Show_Spec_v0.4.2_PATCH_19Apr26.md)** — formal specification and patch notes.
+
+---
+
 ### Coming in Session 5
 - Execution Monitor — watches running scenes, triggers Urgent Contact on anomalies
 
