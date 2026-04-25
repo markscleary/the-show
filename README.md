@@ -2,15 +2,23 @@
 
 A framework for running agents unattended — scenes, fallbacks, adaptive variations, urgent contact escalation, and a programme at the end.
 
-See [docs/The_Show_v0.2_Spec.md](docs/The_Show_v0.2_Spec.md) for the v0.2 spec.
-The locked v0.4.1 spec will be placed in `docs/` when uploaded.
+**Status:** v1.0.0 — production-ready, used in real operations at [Short+Sweet International](https://shortandsweet.org). Open source, runtime free.
+
+---
+
+## What it is
+
+The Show is an orchestration runtime for creative work. It uses a theatrical metaphor — programmes, scenes, Stage Manager, Urgent Contact — because the metaphor maps onto how creative operators already think. You write a programme. The Stage Manager runs it, persisting state after every scene. When something needs a human decision, the Urgent Contact system sends a signed, authenticated request across Telegram, email, SMS or WhatsApp. You respond. The show continues.
+
+The specific differentiator: async cancellation mid-LLM-call across four signed-link channels with typed response schemas and per-channel authentication. When the first valid response comes in, outstanding sends are cancelled. That combination doesn't exist elsewhere as a coherent system.
+
+The v1.0 release was built by running The Show on itself — `examples/build-v1.0-release.yaml` is the programme that built v1.0. It's in the repo.
 
 ---
 
 ## Current state
 
-**Runtime:** Session 4 — Real channel adapters: Telegram, email, WhatsApp (skeleton), SMS
-**Spec version target:** v0.4.1 LOCKED
+**Version:** v1.0.0 — 231 passing tests
 
 ### What works
 - SQLite state (`~/.the-show/state/<show-id>.db`, WAL mode)
