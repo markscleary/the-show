@@ -63,7 +63,7 @@ The full programme is at [`examples/curiosity-cat-launch-announcement.yaml`](exa
 
 ## Current state
 
-**Version:** v1.0.0 — 231 passing tests
+**Version:** v1.1.0 — 231 passing tests
 
 ### What works
 - SQLite state (`~/.the-show/state/<show-id>.db`, WAL mode)
@@ -72,9 +72,9 @@ The full programme is at [`examples/curiosity-cat-launch-announcement.yaml`](exa
 - Per-strategy `success-when` overrides (falls back to scene-level)
 - Basic schema validation in `meets_success` (list / dict / string / number)
 - Markdown-fence sanitisation on untrusted output (`sanitise.py`)
-- Field-validator hook — logs INFO, skips (real validators are a later session)
+- Field-validator hook — logs INFO, skips (real validators planned)
 - Idempotency key generation for side-effectful strategies (logged to event DB)
-- **Urgent Contact** — real dispatcher replacing the Session 2 stub:
+- **Urgent Contact** — real dispatcher:
   - Three auth methods: channel-native, reply-token (6-digit), signed-link (HMAC-SHA256)
   - Strict response parsing: APPROVE / REJECT / STOP / CONTINUE only; invalid format sends a correction prompt and keeps polling
   - Sequential and parallel dispatch modes; `critical` severity forces parallel
@@ -83,7 +83,7 @@ The full programme is at [`examples/curiosity-cat-launch-announcement.yaml`](exa
   - DAG pruning: exhausted/blocked scene cascades `cascading-dependency-failure` to all transitive dependents
   - Frequency throttle: default 3 unplanned matters per show; `human-approval` scenes always exempt; `critical` always bypasses
   - Mock channel for testing (file-drop at `~/.the-show/urgent-mock/`)
-- **Real channel adapters (Session 4):**
+- **Real channel adapters:**
   - **Telegram** — dedicated urgent-contact bot, polling-based, channel-native auth
   - **Email** — SMTP send + signed action links, HMAC-SHA256 tokens, 24h expiry
   - **WhatsApp** — skeleton with setup checklist; send() raises NotImplementedError until Meta onboarding complete
@@ -91,15 +91,15 @@ The full programme is at [`examples/curiosity-cat-launch-announcement.yaml`](exa
   - **Signed-link server** — Flask app on port 5099; handles email link clicks + WhatsApp / Twilio webhooks
 - `load_adapters()` in `dispatcher.py` — registers only configured adapters; warns if credentials missing; mock always available
 - Programme reads from SQLite event log
-- `tests/` — 146 passing pytest tests
+- `tests/` — 231 passing pytest tests
 
-### Known stubs (addressed in later sessions)
-- WhatsApp `send()` raises `NotImplementedError` until Mark completes Meta Business API onboarding
-- Link server is localhost-only — needs reverse proxy or Cloudflare Tunnel for WhatsApp/Twilio webhooks
-- Execution Monitor — not running (Session 5)
-- `STOP` keyword — parsed and returned but does not yet abort the whole show (Session 5)
-- Field-level validators — hook exists, no real validators (later)
-- Basic schema validation only — no JSON Schema deep-validation (later)
+### Current limitations
+- WhatsApp `send()` raises `NotImplementedError` until Meta Business API onboarding completes
+- Link server is localhost-only — needs reverse proxy or Cloudflare Tunnel for WhatsApp and Twilio webhooks
+- Execution Monitor — not yet enabled
+- `STOP` keyword — parsed and returned but does not yet abort the whole show
+- Field-level validators — hook exists, no real validators
+- Basic schema validation only — no JSON Schema deep validation
 
 ---
 
@@ -150,10 +150,10 @@ Run a show that contains a `human-approval` scene. When the dispatcher raises a 
 
 ```bash
 # 1. Start the show — it will block on the human-approval scene
-uv run python cli.py run example_show.yaml
+the-show run example_show.yaml
 
 # 2. In another terminal, find the matter ID from the event log
-uv run python cli.py events outreach-enrichment-001 --limit=5
+the-show events outreach-enrichment-001 --limit=5
 
 # 3. Drop a response for that matter ID (replace <matter-id> with the real value)
 mkdir -p ~/.the-show/mock_responses
@@ -178,7 +178,7 @@ The `THE_SHOW_POLL_INTERVAL` environment variable controls the poll delay (secon
 - `programme.py` — reads from SQLite, generates markdown + JSON
 - `adapters.py` — stub adapters + idempotency key utilities
 - `cli.py` — CLI: validate / run / peek / programme / events
-- `example_show.yaml` — 5-scene example (covers all Session 2 + 3 features)
+- `example_show.yaml` — 5-scene example covering core scene mechanics
 - `urgent_contact/` — Urgent Contact subsystem
   - `dispatcher.py` — raise matters, fire sends, poll, cancel, return resolution
   - `auth.py` — channel-native / reply-token / signed-link auth
@@ -194,7 +194,7 @@ The `THE_SHOW_POLL_INTERVAL` environment variable controls the poll delay (secon
   - `channels/sms.py` — Twilio SMS adapter
   - `link_queue.py` — shared SQLite for email/SMS/WhatsApp webhook responses
   - `link_server.py` — Flask server: `/respond`, `/whatsapp-webhook`, `/twilio-webhook`
-- `tests/` — pytest suite (146 tests)
+- `tests/` — pytest suite (231 tests)
 
 ### Channel configuration
 
@@ -243,8 +243,8 @@ ngrok http 5099
 
 ---
 
-### Coming in Session 5
-- Execution Monitor — watches running scenes, triggers Urgent Contact on anomalies
+### Coming next
 
-### Coming in Session 6
-- First real show end-to-end with live Telegram notifications
+- Execution Monitor — watches running scenes, triggers Urgent Contact on anomalies.
+- WhatsApp send() implementation once Meta Business API onboarding lands.
+- Stronger STOP semantics — parsed STOP aborts the whole show, not just the scene.
