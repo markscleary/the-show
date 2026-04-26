@@ -4,6 +4,8 @@ A framework for running agents unattended — scenes, fallbacks, adaptive variat
 
 **Status:** v1.1.0 — production-ready, on PyPI, used in real operations at [Short+Sweet International](https://shortandsweet.org). Open source, runtime free.
 
+[![PyPI](https://img.shields.io/pypi/v/the-show.svg)](https://pypi.org/project/the-show/) [![Runner](https://img.shields.io/badge/runner-live-brightgreen)](https://raw.githubusercontent.com/markscleary/the-show/status/status/runner-status.json)
+
 ---
 
 ## What it is
