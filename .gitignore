@@ -51,3 +51,8 @@ ENV/
 .idea/
 *.swp
 *.swo
+
+# Internal artefacts — should not be committed
+SESSION_NOTES.md
+outputs/
+.the-show/
