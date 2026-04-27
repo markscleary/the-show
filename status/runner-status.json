@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-04-27T04:12:01Z",
-  "runner_state": "restarted",
-  "runner_pid": "45330",
-  "in_flight_brief": "",
+  "updated_at": "2026-04-27T04:14:00Z",
+  "runner_state": "alive",
+  "runner_pid": "45572",
+  "in_flight_brief": "the-show-prod-install",
   "host": "markshortandsweetorgs-Mac-mini.local"
 }
