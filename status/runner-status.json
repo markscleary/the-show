@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-04-27T04:30:00Z",
-  "runner_state": "alive",
-  "runner_pid": "45572",
-  "in_flight_brief": "agents-online-v2",
+  "updated_at": "2026-04-27T04:32:01Z",
+  "runner_state": "restarted",
+  "runner_pid": "53965",
+  "in_flight_brief": "",
   "host": "markshortandsweetorgs-Mac-mini.local"
 }
