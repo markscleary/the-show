@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-04-27T08:20:01Z",
+  "updated_at": "2026-04-27T08:22:01Z",
   "runner_state": "alive",
   "runner_pid": "54016",
-  "in_flight_brief": "agents-online-v2",
+  "in_flight_brief": "prod-install-evidence-check",
   "host": "markshortandsweetorgs-Mac-mini.local"
 }
