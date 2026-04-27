@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-04-27T12:36:00Z",
-  "runner_state": "alive",
-  "runner_pid": "12004",
-  "in_flight_brief": "tier4-routing-spec",
+  "updated_at": "2026-04-27T12:38:00Z",
+  "runner_state": "restarted",
+  "runner_pid": "16737",
+  "in_flight_brief": "",
   "host": "markshortandsweetorgs-Mac-mini.local"
 }
