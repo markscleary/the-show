@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Show — a programme runtime for creative work</title>
+<meta name="description" content="The Show is a programme runtime for creative work. Festivals, broadcasts, live events, anything with a programme and a running order. Open source, MIT licence.">
+<link rel="canonical" href="https://theshow.shortandsweet.org/">
+<style>
+  :root {
+    --ink: #111;
+    --muted: #555;
+    --rule: #e5e5e5;
+    --accent: #8b0000;
+    --bg: #fff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 18px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+  section { margin-top: 72px; }
+  section:first-of-type { margin-top: 0; }
+  h1 {
+    font-size: 44px;
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 16px;
+  }
+  h2 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    margin: 0 0 16px;
+    color: var(--ink);
+  }
+  p { margin: 0 0 18px; }
+  .lede {
+    color: var(--muted);
+    font-size: 19px;
+    margin-bottom: 32px;
+  }
+  a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  a:hover { text-decoration: underline; }
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .btn {
+    display: inline-block;
+    padding: 10px 18px;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    background: var(--bg);
+    border-radius: 2px;
+    font-size: 16px;
+    line-height: 1.2;
+  }
+  .btn:hover { background: var(--ink); color: var(--bg); text-decoration: none; }
+  .btn-primary {
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .btn-primary:hover { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  pre {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 15px;
+    line-height: 1.55;
+    background: #f6f6f4;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 0 0 18px;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.92em;
+  }
+  .links {
+    margin-top: 8px;
+    font-size: 16px;
+    color: var(--muted);
+  }
+  .links a + a::before { content: " · "; color: var(--rule); }
+  hr {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin: 96px 0 24px;
+  }
+  footer {
+    color: var(--muted);
+    font-size: 14px;
+    text-align: left;
+  }
+  @media (max-width: 600px) {
+    body { font-size: 17px; }
+    h1 { font-size: 36px; }
+    main { padding: 48px 20px 72px; }
+    section { margin-top: 56px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <section>
+    <h1>The Show</h1>
+    <p class="lede">A programme runtime for creative work.<br>Open source. v1.0.0 — April 2026.</p>
+    <p>The Show runs creative production. Festivals, broadcasts, live events, anything that has a programme and a running order. Scenes run in dependency order. Approval gates wait for humans. Urgent contact reaches the operator across four channels. The show must go on.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="#install">Get started</a>
+      <a class="btn" href="https://github.com/markscleary/the-show">GitHub</a>
+    </div>
+  </section>
+
+  <section>
+    <h2>What it is</h2>
+    <p>Every programme is a YAML file. Every YAML file is a list of scenes. Each scene declares its inputs, outputs, dependencies, and how it produces its result — by calling an LLM, by waiting for a human, by reading a file, by sending a message. The runtime walks the dependency graph, runs scenes when they're ready, and stores everything in a state DB so the show can be paused, resumed, inspected, replayed.</p>
+    <p>Scenes can pause for human approval. The default timeout is seven days. Operators get notified across whichever channels they've configured — Telegram, email, SMS, WhatsApp. They reply with a single word. The show resumes.</p>
+    <p>Scenes can fail. Programmes can crash. The runtime carries on. Crash seams between scenes mean a programme that loses one scene doesn't lose the rest. The show must go on is the runtime's core promise, not its slogan.</p>
+  </section>
+
+  <section>
+    <h2>What it isn't</h2>
+    <p>The Show is not for code agents. It's not an enterprise automation runtime. It's not a SaaS platform. It's not where you go for compliance dashboards or RBAC.</p>
+    <p>The Show is for shows. Theatrical metaphor isn't decoration — it's what makes the runtime legible to creative operators who don't think in graph theory. Director, Stage Manager, House Manager, scenes, programmes, urgent contact. If you've worked in a venue, you already know how this works.</p>
+  </section>
+
+  <section id="install">
+    <h2>Install and run</h2>
+<pre><code>pip install the-show
+the-show validate examples/hello.yaml
+the-show run examples/hello.yaml</code></pre>
+    <p>hello.yaml runs in five seconds and exits clean. From there, the operator guide walks through every concept, the quickstart shows you a real programme, and the examples folder has the programme that built v1.0.0 itself.</p>
+    <p class="links">
+      <a href="OPERATOR_GUIDE.md">Operator Guide</a>
+      <a href="QUICKSTART.md">Quickstart</a>
+      <a href="https://github.com/markscleary/the-show/tree/main/examples">Examples</a>
+    </p>
+  </section>
+
+  <section>
+    <h2>About</h2>
+    <p>The Show is part of Short+Sweet Agential, the agent infrastructure division of Short+Sweet International. Short+Sweet has run short-form performing arts festivals across fifteen countries for twenty-five years. The runtime is built for the kind of creative work S+S has always made — programmes, running orders, urgent decisions, the show must go on.</p>
+    <p>The Show is open source under the MIT licence. It's free. It will stay free.</p>
+  </section>
+
+  <hr>
+  <footer>© Short+Sweet International 2026 · Built in Thirroul and Dubai · MIT Licence</footer>
+
+</main>
+</body>
+</html>
