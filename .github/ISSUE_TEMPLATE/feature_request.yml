@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature. The Show is deliberately scope-disciplined — not every good idea is the right idea for this runtime. Strong proposals describe the use case before the solution.
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: What you're trying to do
+      description: |
+        The creative or operational problem that prompted this. Concrete examples beat abstract descriptions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like The Show to do
+      description: How the runtime might support this. Doesn't need to be a complete spec.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you've tried or considered
+      description: Workarounds, other tools, alternative designs.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where do you think this fits
+      options:
+        - Core runtime (scenes, dependencies, state)
+        - Adapters (LLM, channels, custom integrations)
+        - CLI and operator tooling
+        - Documentation
+        - Examples
+        - I'm not sure
+    validations:
+      required: true
