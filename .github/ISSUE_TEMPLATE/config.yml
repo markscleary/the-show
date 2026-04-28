@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question about using The Show
+    url: https://github.com/markscleary/the-show/discussions
+    about: Use Discussions for questions, not issues. Issues are for confirmed bugs and feature requests.

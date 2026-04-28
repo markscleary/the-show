@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in The Show isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        Before submitting: please check the existing issues to see if this has already been reported.
+
+  - type: input
+    id: version
+    attributes:
+      label: The Show version
+      description: Output of `the-show --version`
+      placeholder: "e.g. 1.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Output of `python --version`
+      placeholder: "e.g. 3.11.6"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: A clear description of what went wrong
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What you expected
+      description: A clear description of what you thought would happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: programme
+    attributes:
+      label: Minimal programme
+      description: |
+        If possible, the smallest YAML programme that reproduces the bug. Redact anything sensitive.
+      render: yaml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output
+      description: Output from the run, if relevant
+      render: shell
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "e.g. macOS 14.5, Ubuntu 22.04"
