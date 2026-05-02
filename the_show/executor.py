@@ -185,12 +185,19 @@ def run_human_approval(
     else:
         deadline_iso = None
 
+    # Normalise strategy.to to a list before forwarding.
+    to_list: Optional[list] = None
+    if strategy.to is not None:
+        to_list = [strategy.to] if isinstance(strategy.to, str) else list(strategy.to)
+
     resolution = dispatcher.raise_urgent_matter(
         trigger_type="human-approval",
         severity=strategy.severity or "urgent",
         prompt=strategy.brief or scene.title,
         deadline=deadline_iso,
         scene_id=scene.scene,
+        channels=strategy.channels,
+        to=to_list,
     )
 
     # Map resolution to (success, AdapterResult) for the outer strategy loop

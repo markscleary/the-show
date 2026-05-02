@@ -156,6 +156,8 @@ class UrgentContactDispatcher:
         prompt: str,
         deadline: Optional[str],
         scene_id: Optional[str] = None,
+        channels: Optional[List[str]] = None,
+        to: Optional[List[str]] = None,
     ) -> Resolution:
         if not self.throttle.is_allowed(severity, trigger_type):
             print(
@@ -166,6 +168,20 @@ class UrgentContactDispatcher:
 
         if not self.contacts:
             print(f"[URGENT] No contacts configured for show '{self.show.id}' — exhausted immediately.")
+            return "exhausted"
+
+        # Per-scene filter: select only contacts matching channels and/or to.
+        # When both are None (the v1.1.0 default), every contact receives the matter.
+        selected_contacts = [
+            c for c in self.contacts
+            if (channels is None or c.get("channel") in channels)
+            and (to is None or c.get("handle") in to)
+        ]
+        if not selected_contacts:
+            print(
+                f"[URGENT] No contact matches channels={channels} to={to} "
+                f"for scene '{scene_id}' — exhausted immediately."
+            )
             return "exhausted"
 
         # Compute deadline (read timeout at call time for test-env-var compatibility)
@@ -204,13 +220,13 @@ class UrgentContactDispatcher:
             f"\n  Scene: {scene_id}"
             f"\n  Prompt: {prompt}"
             f"\n  Deadline: {deadline_dt.isoformat()}"
-            f"\n  Contacts: {len(self.contacts)}"
+            f"\n  Contacts: {len(selected_contacts)} of {len(self.contacts)}"
             f"\n  Mode: {self.mode}"
         )
 
-        # Create send records for all contacts (queued)
+        # Create send records for selected contacts (queued)
         send_ids: List[int] = []
-        for contact in self.contacts:
+        for contact in selected_contacts:
             token = self._make_token(contact, matter_id)
             send_id = create_urgent_send(
                 db_path=self.db_path,

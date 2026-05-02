@@ -31,6 +31,8 @@ def _strategy_from_dict(data: Dict[str, Any]) -> Strategy:
         label=data.get("label"),
         success_when=data.get("success-when", {}),  # per-strategy override
         severity=data.get("severity", "urgent"),
+        channels=data.get("channels"),
+        to=data.get("to"),
     )
 
 
@@ -135,6 +137,10 @@ def validate_show(show: ShowSettings) -> None:
     if len(scene_ids) != len(show.running_order):
         raise ValidationError("Duplicate scene IDs are not allowed.")
 
+    contacts = show.urgent_contact.get("contacts", []) if show.urgent_contact else []
+    contact_channels = {c.get("channel") for c in contacts if c.get("channel")}
+    contact_handles = {c.get("handle") for c in contacts if c.get("handle")}
+
     for scene in show.running_order:
         for dep in scene.depends_on:
             if dep not in scene_ids:
@@ -154,3 +160,21 @@ def validate_show(show: ShowSettings) -> None:
                 f"{scene.timeout_seconds} (less than 24 hours). "
                 f"Consider whether this is intentional — approval gates should wait for humans."
             )
+
+        # Per-scene channel/handle routing — cross-reference against urgent-contact.contacts
+        p = scene.principal
+        if p.channels:
+            unknown = set(p.channels) - contact_channels
+            if unknown:
+                raise ValidationError(
+                    f"Scene '{scene.scene}': principal.channels references {sorted(unknown)} "
+                    f"but urgent-contact.contacts has no entry with those channels"
+                )
+        if p.to is not None:
+            to_list = [p.to] if isinstance(p.to, str) else list(p.to)
+            unknown = set(to_list) - contact_handles
+            if unknown:
+                raise ValidationError(
+                    f"Scene '{scene.scene}': principal.to references handles {sorted(unknown)} "
+                    f"but urgent-contact.contacts has no entry with those handles"
+                )
