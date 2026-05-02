@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 @dataclass
@@ -23,6 +23,8 @@ class Strategy:
     label: Optional[str] = None
     success_when: Dict[str, Any] = field(default_factory=dict)  # per-strategy override; falls back to scene-level
     severity: str = "urgent"  # for human-approval: urgent | critical
+    channels: Optional[List[str]] = None  # per-scene channel filter for human-approval (None = all)
+    to: Optional[Union[str, List[str]]] = None  # per-scene handle filter for human-approval (None = all)
 
 
 @dataclass
