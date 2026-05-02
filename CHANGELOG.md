@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.1 — 3 May 2026
+
+Per-scene channel routing — patch fix for a documented behaviour that the v1.1.0 runtime silently dropped.
+
+- `principal.channels` and `principal.to` on a human-approval scene now actually route the urgent matter to a subset of `urgent-contact.contacts`. Both fields are optional; programmes without them fall back to the v1.1.0 fanout, so this release is backward compatible.
+- Loader now parses both fields onto `Strategy`, the dispatcher filters contacts before creating send rows, and the executor forwards them through. Bare-string `to:` is normalised to a list internally.
+- `the-show validate` cross-references `principal.channels` and `principal.to` against `urgent-contact.contacts` and fails at load time if a scene refers to a channel or handle no contact provides.
+- `examples/festival-heat-coordination.yaml` updated to use the new fields — director scene routes to Telegram, technical scene routes to email.
+- 14 new tests in `test_per_scene_routing.py`. 245 passing tests in total.
+
 ## v1.1.0 — 25 April 2026
 
 Proper packaging, PyPI publication, install path fixed.
