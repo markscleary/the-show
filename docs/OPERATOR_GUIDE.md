@@ -135,6 +135,23 @@ urgent-contact:
 
 `mode: sequential` means the Stage Manager tries contacts in order, moving to the next only if the first does not respond within the configured window. `max-per-show` is the total number of urgent matters the Stage Manager raises across the entire run — it protects your attention from a programme that has gone wrong in a way that keeps triggering escalations.
 
+By default, an approval gate dispatches to every contact in `urgent-contact.contacts`. From v1.1.1 onward a scene's `principal` may declare two optional fields that filter the contact list per scene: `channels` (a list of channel types) and `to` (a handle, or a list of handles). Both are optional and compose with AND semantics — an unspecified field is unfiltered. Use them when different scenes should reach different operators or when one scene wants only one channel even though the programme declares several.
+
+```yaml
+- scene: director_approval
+  principal:
+    method: human-approval
+    channels: [telegram]            # only contacts whose channel is "telegram"
+    to: ["8406661245"]              # ...AND whose handle is this Telegram user
+
+- scene: technical_approval
+  principal:
+    method: human-approval
+    channels: [email]               # routes to the email contact only
+```
+
+`the-show validate` cross-references `principal.channels` and `principal.to` against `urgent-contact.contacts`. If a scene refers to a channel or handle that no contact provides, validation fails at load time so the show never opens with broken routing.
+
 Urgent Contact fires in three situations. First, an approval gate — a scene with `method: human-approval` — pauses the show and sends you a message with the context you need to decide. Second, the House Manager raises an alert when a hard signal fires: cost past the threshold, scenes stalling, repeated denials. Third, a scene with `cut: condition: escalate` exhausts all its strategies and calls for a human decision rather than aborting or continuing silently.
 
 The Telegram message includes a signed link. You click it, select your response — APPROVE, REJECT, CONTINUE or STOP — and the show resumes. The signed-link mechanism means the Stage Manager only accepts replies that carry a valid authentication token. An unsigned reply, a malformed response or an expired token triggers a follow-up clarification rather than being acted on.
