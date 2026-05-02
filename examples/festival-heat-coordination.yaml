@@ -1,0 +1,234 @@
+show:
+  id: festival-heat-coordination-001
+  title: "Festival heat coordination — second live test of The Show v1.1.0"
+  rehearsal: false
+  max-duration-seconds: 1800
+  max-scenes: 10
+
+  sliders:
+    risk: housecat
+    improvisation: script
+
+  stage-manager:
+    mode: deterministic
+
+  bible:
+    objective: "Coordinate a festival heat night between the festival director (Telegram) and the venue technical manager (email). Both approvals required before the show is GO."
+    escalation:
+      blocked-scenes-consecutive: 2
+      budget-consumed-percentage: 80
+    reporting:
+      programme-format: [markdown, json]
+      deliver-to: [disk]
+
+  # ── Urgent Contact — two contacts on two channels ───────────────────────────
+  # Per-scene channel routing (v1.1.1+) lets each human-approval scene pick which
+  # contact(s) to dispatch to. Without `channels:` or `to:` on a scene's
+  # principal, the dispatcher fans out to every contact in the list below.
+  urgent-contact:
+    mode: parallel
+    max-per-show: 5
+    send-interval-seconds: 15
+    contacts:
+      - role: festival-director
+        channel: telegram
+        handle: "8406661245"
+        auth: channel-native
+      - role: technical-manager
+        channel: email
+        handle: "mark@shortandsweet.org"
+        auth: signed-link
+
+  running-order:
+
+    # Scene 1 — load running order (deterministic, returns a fixed JSON object).
+    # v1.1.0 has no `principal.method: literal`, so this is a sub-agent call
+    # with a deterministic "return exactly this JSON" prompt — same effect.
+    - scene: load_running_order
+      title: "Load running order — Heat 3, 2026-05-04"
+      input-trust: trusted
+      outputs:
+        running_order:
+          type: object
+          schema: running_order
+      principal:
+        method: sub-agent
+        agent: gemini
+        brief: |
+          Return EXACTLY the following JSON object, with no preamble, no markdown
+          fences, no commentary — JSON only:
+
+          {
+            "heat_name": "Heat 3",
+            "show_date": "2026-05-04",
+            "running_order": "1. Welcome (host) — 3 min\n2. Play A — 10 min\n3. Play B — 10 min\n4. Interval — 15 min\n5. Play C — 10 min\n6. Play D — 10 min\n7. Awards (host) — 5 min"
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 120
+      cut:
+        condition: escalate
+        reason: "Running order is load-bearing — cannot proceed without it"
+
+    # Scene 2 — generate technical schedule from the running order.
+    # Real Gemini call. Runs in parallel with the director approval (scene 3),
+    # since neither depends on the other.
+    - scene: generate_technical_schedule
+      title: "Generate technical schedule from running order"
+      depends-on: [load_running_order]
+      inputs:
+        running_order: from(load_running_order.running_order)
+      input-trust: untrusted
+      outputs:
+        technical_schedule:
+          type: object
+          schema: technical_schedule
+      principal:
+        method: sub-agent
+        agent: gemini
+        brief: |
+          You are a venue technical manager. See INPUTS for the running order.
+
+          Produce a technical schedule with cue points for sound and lighting,
+          assuming a standard small theatre rig. One cue per line. Keep it under
+          20 lines. Plain text inside the JSON field.
+
+          Return JSON only, no markdown fences:
+          {
+            "schedule_text": "<the schedule, one cue per line>",
+            "cue_count": <integer>
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 180
+      cut:
+        condition: escalate
+        reason: "Technical schedule is needed for technical_approval"
+
+    # Scene 3 — director approval (Telegram).
+    # `channels: [telegram]` selects the festival-director contact only.
+    - scene: director_approval
+      title: "Festival director approval — running order (Telegram)"
+      depends-on: [load_running_order]
+      inputs:
+        running_order: from(load_running_order.running_order)
+      input-trust: trusted
+      outputs:
+        director_decision:
+          type: string
+          schema: string
+      principal:
+        method: human-approval
+        agent: stage-manager
+        severity: urgent
+        channels: [telegram]
+        brief: |
+          Festival heat coordination test — second live test of The Show v1.1.0.
+
+          You are the festival director. The running order for tonight's heat
+          is in the show state. Review it via:
+
+            cli.py peek festival-heat-coordination-001
+
+          Reply APPROVE to confirm running order is correct.
+          Reply REJECT to abort.
+          Reply STOP to abort immediately.
+
+          (10-minute timeout for the test — production would be 7 days.)
+      success-when:
+        schema: string
+      timeout-seconds: 600
+      cut:
+        condition: escalate
+        reason: "Cannot proceed without director approval"
+
+    # Scene 4 — technical manager approval (email).
+    # Depends on both scene 2 (technical schedule) and scene 3 (director's go).
+    # `channels: [email]` selects the technical-manager contact only.
+    - scene: technical_approval
+      title: "Technical manager approval — technical schedule (Email)"
+      depends-on: [generate_technical_schedule, director_approval]
+      inputs:
+        technical_schedule: from(generate_technical_schedule.technical_schedule)
+        director_decision: from(director_approval.director_decision)
+      input-trust: trusted
+      outputs:
+        tech_decision:
+          type: string
+          schema: string
+      principal:
+        method: human-approval
+        agent: stage-manager
+        severity: urgent
+        channels: [email]
+        brief: |
+          Technical schedule for Heat 3 (2026-05-04) ready for review.
+
+          The director has APPROVED the running order. Please review the
+          technical schedule via:
+
+            cli.py peek festival-heat-coordination-001
+
+          Reply APPROVE if the schedule is workable.
+          Reply REJECT if revisions are needed.
+          Reply STOP to abort immediately.
+
+          (10-minute timeout for the test.)
+      success-when:
+        schema: string
+      timeout-seconds: 600
+      cut:
+        condition: escalate
+        reason: "Cannot mark show ready without technical approval"
+
+    # Scene 5 — confirm show ready (deterministic).
+    # Same trick as scene 1: sub-agent + deterministic prompt to substitute
+    # for the missing `principal.method: literal`.
+    - scene: confirm_show_ready
+      title: "Confirm show ready — both approvals received"
+      depends-on: [director_approval, technical_approval]
+      inputs:
+        director_decision: from(director_approval.director_decision)
+        tech_decision: from(technical_approval.tech_decision)
+      input-trust: trusted
+      outputs:
+        show_status:
+          type: object
+          schema: show_status
+      principal:
+        method: sub-agent
+        agent: gemini
+        brief: |
+          Return EXACTLY the following JSON object, with no preamble, no markdown
+          fences, no commentary — JSON only:
+
+          {
+            "show_status": "Show ready. Running order approved by director, technical schedule approved by technical manager. Heat is GO."
+          }
+        params:
+          model: gemini-flash
+      success-when:
+        schema: object
+      retry-policy:
+        max-attempts: 2
+        backoff: exponential
+        base-delay-seconds: 2
+        retriable-errors: [rate-limit, timeout]
+      timeout-seconds: 120
+      cut:
+        condition: continue
+        reason: "Status compilation failed — both approvals are still in state"
