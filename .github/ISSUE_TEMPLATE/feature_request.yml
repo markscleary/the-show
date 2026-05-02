@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest a new capability or improvement
+title: "[feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open-ended ideas are often a better fit for [Discussions → Ideas](https://github.com/markscleary/the-show/discussions/categories/ideas) — issues are best when there's a concrete change to land.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The operator situation that today is awkward, painful, or impossible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What would you like The Show to do? A YAML sketch or CLI example helps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - runtime
+        - adapters
+        - cli
+        - dispatcher
+        - docs
+        - not sure
+    validations:
+      required: false

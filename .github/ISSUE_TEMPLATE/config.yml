@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Operator question
+    url: https://github.com/markscleary/the-show/discussions/categories/q-a
+    about: How-to questions and operator help — answered faster in Discussions.
+  - name: General discussion / show-and-tell
+    url: https://github.com/markscleary/the-show/discussions
+    about: Open-ended conversation, sharing programmes you've built, ideas not yet ready to be issues.

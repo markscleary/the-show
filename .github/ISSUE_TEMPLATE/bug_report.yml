@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in The Show isn't working
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Operator questions ("how do I…?") are usually a better fit for [Discussions](https://github.com/markscleary/the-show/discussions).
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `the-show --version`, or commit SHA if running from source.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including the command you ran and what went wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: If possible, include a minimal programme YAML or command sequence.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or event output
+      description: Output of `the-show events <show-id>` or stderr from the failing run.
+      render: shell
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the runtime is affected? (Optional — Lead will set the area label on triage.)
+      options:
+        - runtime
+        - adapters
+        - cli
+        - dispatcher
+        - docs
+        - not sure
+    validations:
+      required: false
