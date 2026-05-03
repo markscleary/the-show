@@ -1,7 +1,7 @@
 {
-  "updated_at": "2026-05-03T10:16:00Z",
-  "runner_state": "alive",
-  "runner_pid": "43520",
+  "updated_at": "2026-05-03T10:18:00Z",
+  "runner_state": "restarted",
+  "runner_pid": "48379",
   "in_flight_brief": "",
   "host": "markshortandsweetorgs-Mac-mini.local"
 }
